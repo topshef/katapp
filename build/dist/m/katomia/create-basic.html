@@ -1790,13 +1790,13 @@ drawThemeWheel()
 <!-- Profile modal stack (PROFILE-INDEX1) — same modal as in-game; core is load-safe
      off the game page (game controls guarded). -->
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
-<!-- WC-ANDROIDLINK1 (2026-11-07): stops the wc: redirect that made HashPack on Android show
-     "Pairing error … pair() uri#relay-protocol" on every request; see the file's header. -->
+<!-- WC-ANDROIDLINK3 (2026-11-07): on Android, sends each request's "bring the wallet forward" link
+     to HashPack's own app link; see the header of /assets/js/kwc-deeplink.js. Baseline: tag wc-baseline. -->
 <script src="/assets/js/kwc-deeplink.js"></script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="katomia-core.js?v=1794010719"></script>
-<script src="katomia-helpers.js?v=1794054693"></script>
+<script src="katomia-helpers.js?v=1794056349"></script>
 <script src="kemoji.js?v=1793403648"></script>
 <script>
   // katomia-modals.js (the diag sender) isn't loaded here — shim so profile/auth

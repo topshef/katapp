@@ -22,6 +22,8 @@
 #              countdown in the centre strip, the conveyor moves and its ⟳ stops it). Born
 #              with CAROUSEL1 on the operator's condition that a second board shape must not
 #              break the first: qa/board/run.mjs.
+#   wc-android — WC-ANDROID-QA1: what link each signing request opens on an Android phone, through
+#              the real relay with the kWallet simulator as HashPack (qa/wc-android/run.cjs).
 #   smoke    — after a push, waits for the Cloudflare build then curls the live routes
 #              (the 404s this whole exercise started with). Origin comes from the
 #              repository VARIABLE KATUI_ORIGIN (Settings → Secrets and variables →
@@ -30,7 +32,7 @@ name: katui
 on:
   push:
     branches: [main, lab1, 'claude/**', 'ccr-**']   # KATAPP-SPLIT1: katapp's trunk is main; lab1 deploys lab1.katomia.com
-    paths: [build/**, public_html/**, qa/sign/**, qa/board/**, qa/ab/**, .github/workflows/katui.yml]
+    paths: [build/**, public_html/**, qa/sign/**, qa/board/**, qa/ab/**, qa/wc-android/**, .github/workflows/katui.yml]
   schedule:
     - cron: '41 */6 * * *'
   workflow_dispatch:
@@ -99,6 +101,30 @@ jobs:
           npx playwright install --with-deps chromium
       - name: BOARD-REGRESSION1
         run: node qa/board/run.mjs
+
+  # WC-ANDROID-QA1 (owner 2026-11-07): the real KWC bundle + this commit's kwc-deeplink.js on the
+  # lab1 origin, posing as an Android phone, paired through the REAL WalletConnect relay with the
+  # kWallet simulator presenting itself as HashPack; checks the link every signing request opens
+  # (hashpack://, the repair of WC-ANDROIDLINK1's href:null, ?wclink=wc, another wallet) and that
+  # each signature verifies. Needs the relay, which the cloud sandbox cannot reach: CI is where it
+  # runs. qa/wc-android/run.cjs.
+  wc-android:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: qa/wc-android/package-lock.json
+      - name: install
+        working-directory: qa/wc-android
+        run: |
+          npm ci --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: WC-ANDROID-QA1
+        run: node qa/wc-android/run.cjs
 
   # AB-LABS1 (owner 2026-11-06): labs (phpjabbers) against lab1 (katapp), live — manual runs
   # only, since it reads two production hosts. qa/ab/README.md says what it compares.

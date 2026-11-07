@@ -1360,7 +1360,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "962a0c3"
+  window.KFLOW_COMMIT = "edeafd5"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1390,8 +1390,8 @@ window.katomiaNet = (() => {
      remains reachable via the tx list outside the ring, and the hub tap
      opens the external all-wallets page for comparison. -->
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
-<!-- WC-ANDROIDLINK1 (2026-11-07): stops the wc: redirect that made HashPack on Android show
-     "Pairing error … pair() uri#relay-protocol" on every request; see the file's header. -->
+<!-- WC-ANDROIDLINK3 (2026-11-07): on Android, sends each request's "bring the wallet forward" link
+     to HashPack's own app link; see the header of /assets/js/kwc-deeplink.js. Baseline: tag wc-baseline. -->
 <script src="/assets/js/kwc-deeplink.js"></script>
 
 <script>window.KPAY_SIGN_HASH = true</script>
@@ -1402,7 +1402,7 @@ window.katomiaNet = (() => {
 <script src="katomia-core.js?v=1794010719"></script>
 <script src="katomia-localdb.js?v=1793403648"></script>
 <script src="kemoji.js?v=1793403648"></script>
-<script src="katomia-helpers.js?v=1794054693"></script>
+<script src="katomia-helpers.js?v=1794056349"></script>
 <script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="katomia-enrich.js?v=1793992212"></script>
 <script src="katomia-network.js?v=1794010898"></script>
@@ -1418,7 +1418,7 @@ window.katomiaNet = (() => {
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->
 <script src="katomia-txstatus.js?v=1793403648"></script>
-<script src="katomia-board.js?v=1794054686"></script>
+<script src="katomia-board.js?v=1794056349"></script>
 <script src="katomia-carousel.js?v=1793403648"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
 <script src="katomia-tickets.js?v=1793403648"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 

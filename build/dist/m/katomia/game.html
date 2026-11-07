@@ -1454,7 +1454,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "962a0c3"
+  window.KFLOW_COMMIT = "edeafd5"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1470,8 +1470,8 @@ window.katomiaNet = (() => {
      widget is dropped in purely via a script tag to prove it's host-agnostic.
      Both are same-origin here; adjust paths via window.KPAY_FUTURE_BASE etc. -->
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
-<!-- WC-ANDROIDLINK1 (2026-11-07): stops the wc: redirect that made HashPack on Android show
-     "Pairing error … pair() uri#relay-protocol" on every request; see the file's header. -->
+<!-- WC-ANDROIDLINK3 (2026-11-07): on Android, sends each request's "bring the wallet forward" link
+     to HashPack's own app link; see the header of /assets/js/kwc-deeplink.js. Baseline: tag wc-baseline. -->
 <script src="/assets/js/kwc-deeplink.js"></script>
 
 <!-- MODAL-URL1: opt in to URL-hash persistence so a signing modal survives reload
@@ -1485,7 +1485,7 @@ window.katomiaNet = (() => {
 <script src="katomia-core.js?v=1794010719"></script>
 <script src="katomia-localdb.js?v=1793403648"></script>
 <script src="kemoji.js?v=1793403648"></script>
-<script src="katomia-helpers.js?v=1794054693"></script>
+<script src="katomia-helpers.js?v=1794056349"></script>
 <script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="katomia-enrich.js?v=1793992212"></script>
 <script src="katomia-network.js?v=1794010898"></script>

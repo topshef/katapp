@@ -65,7 +65,7 @@ function getKwc($in) {
 
 ?>
 <script type="<?=$kwc->script_type?>" data-mode="<?=$kwc->mode?>" src="<?=$kwc->url?>" data-config="/vendor/walletconnect/config.json"></script>
-<!-- WC-ANDROIDLINK1 (2026-11-07): stops the wc: redirect that made HashPack on Android show
-     "Pairing error … pair() uri#relay-protocol" on every request; see the file's header. -->
+<!-- WC-ANDROIDLINK3 (2026-11-07): on Android, sends each request's "bring the wallet forward" link
+     to HashPack's own app link; see the header of /assets/js/kwc-deeplink.js. Baseline: tag wc-baseline. -->
 <script src="/assets/js/kwc-deeplink.js"></script>
 

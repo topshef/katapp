@@ -110,9 +110,7 @@
 				link = document.createElement("a")
 				link.className = "notice-link"
 				link.href = opts.link.href
-				// an app link (WC-ANDROIDLINK2's "Open HashPack", hashpack://…) opens in place: a new
-				// tab for it would be left behind empty once the app takes over
-				link.target = /^https?:/i.test(opts.link.href) ? "_blank" : "_self"
+				link.target = "_blank"
 				link.rel = "noopener noreferrer"
 				link.textContent = opts.link.text || "View"
 			}
