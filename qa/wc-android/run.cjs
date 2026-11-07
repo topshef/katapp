@@ -21,6 +21,11 @@
 // Needs the relay (relay.walletconnect.com) — CI, not the cloud sandbox (its proxy refuses it).
 // Env: ORIGIN (https://lab1.katomia.com), LIVE=1 to use the origin's deployed shim instead of this
 // commit's, KWC_PIN (4a3351b), QA_KWALLET_ACCOUNT (0.0.10325114).
+// Each scenario has its own wallet. WalletConnect's Node core is a process-wide singleton unless
+// DISABLE_GLOBAL_CORE is set (globalThis._walletConnectCore_<prefix>): without it the second
+// wallet shares the first one's core and every proposal arrives twice (CI run 106).
+process.env.DISABLE_GLOBAL_CORE = 'true'
+process.on('unhandledRejection', e => console.log('[unhandled]', e && e.message || e))
 const fs = require('fs')
 const path = require('path')
 const os = require('os')
@@ -111,13 +116,25 @@ async function scenario(browser, cfg, name, { metadata, before, expect }) {
     let uri = null
     for (let i = 0; i < 120 && !uri; i++) { uri = await page.evaluate(HOOK_URI); if (!uri) await page.waitForTimeout(500) }
     if (!uri) throw new Error('no pairing URI: ' + (await page.evaluate(() => window.__connectError || '')))
-    await sim.pair(uri)
+    // pair — with ONE retry on a fresh pairing, as phpjabbers qa/kwallet does: the handoff can
+    // lose the proposal (kwallet run 21; this suite's CI run 106), and "tap Connect again" is what
+    // a person does
     let accounts = []
-    for (let i = 0; i < 60 && !accounts.includes(ACCOUNT); i++) {
-      accounts = await page.evaluate(async () => { try { return (await window.WC.getAccounts()) || [] } catch (e) { return [] } })
-      if (!accounts.includes(ACCOUNT)) await page.waitForTimeout(500)
+    for (let attempt = 1; attempt <= 2 && !accounts.includes(ACCOUNT); attempt++) {
+      if (attempt > 1) {
+        log('no session after the first pairing — connecting again for a fresh one')
+        const old = uri; uri = null
+        page.evaluate(async () => { try { await window.WC.connect() } catch (e) { window.__connectError = String(e && e.message || e) } }).catch(() => {})
+        for (let i = 0; i < 60 && (!uri || uri === old); i++) { uri = await page.evaluate(HOOK_URI); if (!uri || uri === old) await page.waitForTimeout(500) }
+        if (!uri || uri === old) break
+      }
+      await sim.pair(uri).catch(e => log('pair() threw', e.message))
+      for (let i = 0; i < 40 && !accounts.includes(ACCOUNT); i++) {
+        accounts = await page.evaluate(async () => { try { return (await window.WC.getAccounts()) || [] } catch (e) { return [] } })
+        if (!accounts.includes(ACCOUNT)) await page.waitForTimeout(500)
+      }
     }
-    if (!accounts.includes(ACCOUNT)) throw new Error('no session: ' + JSON.stringify({ accounts, errors: sim.state.errors }))
+    if (!accounts.includes(ACCOUNT)) throw new Error('no session: ' + JSON.stringify({ accounts, proposals: sim.state.proposals, errors: sim.state.errors }))
     await page.evaluate(a => { try { window.WC.setActiveAccount?.(a) } catch (e) {} }, ACCOUNT)
     const pairingTopic = uri.slice(3, uri.indexOf('@'))
     // what the modal stores on Android after the pairing (CoreUtil.setWalletConnectAndroidDeepLink)

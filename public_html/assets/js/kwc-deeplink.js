@@ -34,7 +34,10 @@
 // WHAT IT DOES
 //  1. A request redirect built from a wc: choice goes instead to the connected wallet's published
 //     link (peer.metadata.redirect.native, then .universal) or, for HashPack (which publishes
-//     none: metadata name "HashPack", url "https://localhost"), to hashpack://. Any other wallet
+//     none: metadata name "HashPack", url "https://localhost"), to hashpack:// — the mobile link
+//     HashPack itself registers with WalletConnect (explorer-api.walletconnect.com, read
+//     2026-11-07: mobile native "hashpack://", universal "https://link.hashpack.app"; Android app
+//     app.hashpack.wallet.twa), i.e. what WalletConnect's own wallet picker opens. Any other wallet
 //     keeps the wc: link. The pairing link the modal opens is never touched.
 //  2. A stored choice with no usable href (ANDROIDLINK1's href:null) is rebuilt as the modal
 //     writes it, from the newest session's pairing topic, so the redirect happens at all.
