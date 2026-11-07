@@ -14,14 +14,14 @@
 // nothing at all.
 //
 // HISTORY — keep it, it is the reason this file is this small:
-//  - Baseline (before 7 Nov, katapp 7b041f7, tag wc-baseline): no shim. wc: redirect, HashPack
+//  - Baseline (before 7 Nov, katapp 7b041f7 — the revert target): no shim. wc: redirect, HashPack
 //    forward with the error. The owner was used to it.
 //  - WC-ANDROIDLINK1 (962a0c3): rewrote the choice to the wallet's published link, or href:null.
 //    It read WalletConnect's sessions under "…//session"; the storage (unstorage normalizeKey)
 //    holds them under "wc@2:client:0.3:session", so it never found one, stored href:null, and
 //    REMOVED the redirect. Requests piled up until HashPack was opened by hand. Its test seeded
 //    the key as the code names it, not as the storage writes it.
-//  - WC-ANDROIDLINK2 (edeafd5, tag wc-androidlink2): redirect to hashpack://, a 1.8s
+//  - WC-ANDROIDLINK2 (katapp edeafd5): redirect to hashpack://, a 1.8s
 //    "did the wallet come forward?" check with a wc: fallback, and a board nudge at 8s. The diag
 //    log (12:47–12:53Z, two phones) showed hashpack:// working — signatures back 1–4s after each
 //    redirect, nobody opening HashPack by hand — but the check never could tell (every outcome
@@ -41,6 +41,9 @@
 //  3. One diag line per redirect (wc:redirect) and per repair (wc:deeplink:healed).
 // Only on Android, never inside a wallet's in-app browser (Android WebView, "; wv)").
 //
+// REVERTING THE CODE: `git checkout 7b041f7 -- public_html/vendor/walletconnect/kwcScriptTag.php`
+// drops this file from the page (then rebuild dist). Do that only once no phone can still hold
+// WC-ANDROIDLINK1's href:null, or keep this file with DEFAULT_MODE = "wc" (repair only).
 // REVERTING (no deploy needed for one phone): open any lab1 page with ?wclink=wc and that phone
 // is back to the baseline redirect (the repair in 2 still runs: without it a phone that held
 // href:null would get no redirect at all); ?wclink=auto undoes it. For everyone: set

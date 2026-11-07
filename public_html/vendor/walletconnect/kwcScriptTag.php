@@ -66,6 +66,6 @@ function getKwc($in) {
 ?>
 <script type="<?=$kwc->script_type?>" data-mode="<?=$kwc->mode?>" src="<?=$kwc->url?>" data-config="/vendor/walletconnect/config.json"></script>
 <!-- WC-ANDROIDLINK3 (2026-11-07): on Android, sends each request's "bring the wallet forward" link
-     to HashPack's own app link; see the header of /assets/js/kwc-deeplink.js. Baseline: tag wc-baseline. -->
+     to HashPack's own app link; see the header of /assets/js/kwc-deeplink.js. Baseline (revert target): katapp 7b041f7. -->
 <script src="/assets/js/kwc-deeplink.js"></script>
 

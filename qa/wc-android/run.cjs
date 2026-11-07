@@ -10,7 +10,7 @@
 //
 //   1. hashpack     the stored Android choice as the modal writes it → each request opens hashpack://
 //   2. repaired     the href:null WC-ANDROIDLINK1 left on phones → repaired, then hashpack://
-//   3. baseline     ?wclink=wc on this "phone" → the wc: link, as before 7 Nov (tag wc-baseline)
+//   3. baseline     ?wclink=wc on this "phone" → the wc: link, as before 7 Nov (katapp 7b041f7)
 //   4. other wallet a wallet that is not HashPack and publishes no link → keeps the wc: link
 // Plus: the session really is stored under "wc@2:client:0.3:session" (WC-ANDROIDLINK1 assumed the
 // "//" form and never found it).
