@@ -5390,7 +5390,7 @@ async function boardDirectSign(account){
     stray.forEach(k => seen.add(k)); _boardStrayKeysSeen.set(tx.txid, seen)
     if(freshStray.length && sr.hint){
       boardDiag("board:sign:wrong-key", { txid: tx.txid, accountId: signAs, unexplained: stray.map(k => k.slice(-8)), fresh: freshStray.length, accountKeys: sr.accountKeys })
-      notify(`⚠️ Signature saved but it will NOT count: ${sr.hint}`, "warning", { timeout: 15000, txid: tx.txid })
+      notify(`Signature saved but it will NOT count: ${sr.hint}`, "warning", { timeout: 15000, txid: tx.txid })   // the warning type adds the ⚠️
       try { if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system) window.katomiaChat.system(`⚠️ ${signAs}: ${sr.hint}`) } catch {}
     } else if(stray.length){
       // only an EARLIER tap's stray key is outstanding: this signature is fine
