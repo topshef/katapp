@@ -1521,6 +1521,9 @@ window.addEventListener("load", () => {
 <script src="katomia-profile.js?v=1794010719"></script>
 <script src="katomia-auth.js?v=1793403648"></script>
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
+<!-- WC-ANDROIDLINK1 (2026-11-07): stops the wc: redirect that made HashPack on Android show
+     "Pairing error … pair() uri#relay-protocol" on every request; see the file's header. -->
+<script src="/assets/js/kwc-deeplink.js"></script>
 
 <!-- GCP feedback 2026-08-13: widget in place so Send feedback never navigates away
      (see circles.php note). data-screenshot off per KAT-FEEDSHOT-BROKEN1. -->

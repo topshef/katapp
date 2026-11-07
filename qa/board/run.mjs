@@ -1401,6 +1401,50 @@ console.log('INTENTKEY-TIMEOUT1: with an IndexedDB that never answers, the join 
   }
 }
 
+// ── WC-ANDROIDLINK1 (owner 2026-11-07): no more wc: redirects for HashPack to misread as a pairing ──
+console.log('WC-ANDROIDLINK1: a wc: deep-link choice becomes the wallet\'s own link, or no redirect — never a fake pairing URI')
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+  const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message))
+  await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
+  // write sessions the way WalletConnect's keyvaluestorage does: IndexedDB, JSON string per key
+  const seed = (redirect) => page.evaluate(r => new Promise(res => {
+    const sessions = [{ topic: 'old', expiry: 1, peer: { metadata: { name: 'Old', redirect: { native: 'old://' } } } },
+                      { topic: 't1', expiry: 2e9, peer: { metadata: { name: 'HashPack', url: 'https://www.hashpack.app', ...(r ? { redirect: r } : {}) } } }]
+    const q = indexedDB.open('WALLET_CONNECT_V2_INDEXED_DB')
+    q.onupgradeneeded = () => q.result.createObjectStore('keyvaluestorage')
+    q.onsuccess = () => { const tx = q.result.transaction('keyvaluestorage', 'readwrite'); tx.objectStore('keyvaluestorage').put(JSON.stringify(sessions), 'wc@2:client:0.3//session'); tx.oncomplete = () => { q.result.close(); res() } }
+  }), redirect)
+  const run = (stored) => page.evaluate(async c => {
+    localStorage.setItem('WALLETCONNECT_DEEPLINK_CHOICE', JSON.stringify(c))
+    await window.katomiaFixWcDeepLink('qa')
+    return JSON.parse(localStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE'))
+  }, stored)
+  const wcChoice = { href: 'wc:6a25ce9e89626f23ced4ac6@2', name: 'Android' }   // what the modal stores on Android
+
+  await seed({ native: 'hashpack://', universal: 'https://link.hashpack.app' })
+  const a = await run(wcChoice)
+  ok(a.href === 'hashpack://' && a.name === 'HashPack', 'a wc: choice becomes the link the connected wallet publishes (newest session, native first)', JSON.stringify(a))
+  await seed({ universal: 'https://link.example.app' })
+  const b = await run(wcChoice)
+  ok(b.href === 'https://link.example.app', 'a wallet with only a universal link gets that', JSON.stringify(b))
+  await seed(null)
+  const c = await run(wcChoice)
+  ok(c.href === null, 'a wallet that publishes no link gets no redirect (the sign client skips a non-string href)', JSON.stringify(c))
+  const d = await run({ href: 'https://link.example.app/', name: 'Example' })
+  ok(d.href === 'https://link.example.app/', 'a choice that is not a wc: link is left alone', JSON.stringify(d))
+  const w = await page.evaluate(() => ({ has: !!window.WC, wrapped: window.WC?.__katomiaDeeplinkFix || 0 }))
+  ok(!w.has || w.wrapped >= 3, "the wallet's request functions are wrapped so the check runs before each one", JSON.stringify(w))
+  // on load: a page opened with a bad choice already stored corrects it by itself
+  await seed({ native: 'hashpack://' })
+  await page.evaluate(() => localStorage.setItem('WALLETCONNECT_DEEPLINK_CHOICE', JSON.stringify({ href: 'wc:abc@2', name: 'Android' })))
+  await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(800)
+  const e = await page.evaluate(() => JSON.parse(localStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE')))
+  ok(e.href === 'hashpack://', 'and a page that loads with a wc: choice stored fixes it on its own', JSON.stringify(e))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await ctx.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

@@ -1360,7 +1360,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "bf59542"
+  window.KFLOW_COMMIT = "7b041f7"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1390,6 +1390,9 @@ window.katomiaNet = (() => {
      remains reachable via the tx list outside the ring, and the hub tap
      opens the external all-wallets page for comparison. -->
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/4a3351b/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
+<!-- WC-ANDROIDLINK1 (2026-11-07): stops the wc: redirect that made HashPack on Android show
+     "Pairing error … pair() uri#relay-protocol" on every request; see the file's header. -->
+<script src="/assets/js/kwc-deeplink.js"></script>
 
 <script>window.KPAY_SIGN_HASH = true</script>
 <script src="/vendor/kpay/kpool_widget/kpay-embed.js" defer></script>
