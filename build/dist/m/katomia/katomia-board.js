@@ -396,6 +396,13 @@ let boardSelfBottom = _bp.selfBottom ?? true   // me at 6 o'clock; off = shared 
 // hatch, parked not removed (unknown edge cases may still want the split view)
 let boardNetView = _bp.netView ?? true         // FULL pairwise netting (🧪 Settings)
 let boardSelectedAccount = null                // footer dropdown selection
+// SIGN-PICK1 (owner 2026-11-07, m-prop~15 at 14:22Z: tapped Sign 1s after the strike and signed
+// with 0.0.4552001 — selected from before the strike — while only the payer 0.0.7428530 had to
+// sign): which strike the bar last picked for, and which strike the person picked by hand
+let _boardPickedForTx = null, _boardManualPickTx = null
+// SIGN-WHY2: the stray keys already reported per tx, so a later CORRECT signature is not told
+// "will NOT count" about an earlier tap's stray key (same incident, 14:22:44Z)
+const _boardStrayKeysSeen = new Map()
 const _boardSeenMineIds = new Set()            // my account ids ever seen — newest-lands-selected (2026-07-14)
 let boardPartyOnly = _bp.partyOnly ?? false    // rule-aware party filter
 // animation speed multiplier (Prefs — debug throttle): 1 = normal, 0.25 = ¼
@@ -881,6 +888,11 @@ function boardShowResult(txid, ok, tier, source){
   boardSuccessAcked.add(txid)
   boardSaveAckedTx(boardSuccessAcked)
   boardDiag("board:result:shown", { txid, ok, ...(tier ? { tier } : {}), ...(source ? { source } : {}) })
+  // SIGN-TOASTCLEAR1 (owner 2026-11-07: "if there's a new message, a success result coming
+  // through, that should override and take away the warnings"): a success takes down this tx's
+  // warning and error toasts — the witness "will NOT count", the wallet-mismatch, the watchdog.
+  // The message history keeps them. A failure keeps them: there they explain why.
+  if(ok){ try { const n = window.katomiaClearNotices?.({ txid, types: ["warning", "error"] }); if(n) boardDiag("board:toast:cleared", { txid, n }) } catch {} }
   const prov = BOARD_PROVENANCE_GLYPH[source] ? ` ${BOARD_PROVENANCE_GLYPH[source]}` : ""
   // read by the wipe branch below (~4442) so the spotlight lift can match
   // whichever celebration is actually playing — confetti (~4.25s) on
@@ -975,7 +987,7 @@ window.katomiaTxStatus?.subscribe(ev => {
   if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok, ev.tier, ev.source)
   // advice toasts carry their txid as detail text — every message names its tx
   else if(ev.type === "advice" && ev.detail?.message)
-    notify(ev.detail.message, ev.detail.level || "warning", { timeout: ev.detail.timeout ?? 6000, detail: ev.txid })
+    notify(ev.detail.message, ev.detail.level || "warning", { timeout: ev.detail.timeout ?? 6000, detail: ev.txid, txid: ev.txid })
 })
 
 let _boardTxSocket = null
@@ -2573,7 +2585,7 @@ function susanCard(account, ctx, mine = false){
     // review 14: tapping your own header selects the account (two-way with
     // the footer dropdown — the dropdown may retire in some contexts later)
     head.style.cursor = "pointer"
-    head.onclick = () => { boardSelectedAccount = account.id; render() }
+    head.onclick = () => { boardSelectedAccount = account.id; _boardManualPickTx = boardSigning?.tx?.txid || null; render() }
   }
   head.textContent = (account.id.split(":")[1] || account.id)
     + (mine ? " (you)" : "")
@@ -5297,7 +5309,7 @@ async function boardDirectSign(account){
     if(!active) active = await wc.connect()          // pairing UI is the wallet's own
     if(active !== accountId && typeof wc.setActiveAccount === "function"){
       try { await wc.setActiveAccount(accountId) } catch(e){
-        notify(`Wallet is connected as ${active} — switch to ${accountId} in your wallet, or sign as ${active}`, "warning", { timeout: 6000 })
+        notify(`Wallet is connected as ${active} — switch to ${accountId} in your wallet, or sign as ${active}`, "warning", { timeout: 6000, txid: tx.txid })
       }
     }
     let bytes = tx.txhex ? boardHexToBytes(tx.txhex) : null
@@ -5318,7 +5330,7 @@ async function boardDirectSign(account){
       // here instead: tell the user exactly which account to switch to, immediately.
       boardDiag("board:sign:account-mismatch", { txid: tx.txid, network, needed: accountId, active: signAs })
       notify(`Wallet is connected as ${signAs} but this needs ${accountId} to sign — switch accounts in your wallet (or disconnect and reconnect as ${accountId}), then tap Sign again.`,
-        "error", { timeout: 15000 })
+        "error", { timeout: 15000, txid: tx.txid })
       return
     }
     // WS-SIGNDIAG1 (user 2026-08-03, t-prop): "wallet said done, board never got the
@@ -5369,10 +5381,21 @@ async function boardDirectSign(account){
     let verdict = null
     try { const j = await save.json(); verdict = (j && (j.result || j)) || null } catch {}
     const sr = verdict?.signingReadiness
-    if(sr && Array.isArray(sr.unexplained) && sr.unexplained.length && sr.hint){
-      boardDiag("board:sign:wrong-key", { txid: tx.txid, accountId: signAs, unexplained: sr.unexplained.map(k => String(k).slice(-8)), accountKeys: sr.accountKeys })
-      notify(`⚠️ Signature saved but it will NOT count: ${sr.hint}`, "warning", { timeout: 15000 })
+    // SIGN-WHY2 (owner 2026-11-07): signingReadiness lists EVERY stray key on the tx so far, so
+    // the right account signing after a wrong one was told its signature "will NOT count" too.
+    // Warn only about stray keys this signature added.
+    const stray = Array.isArray(sr?.unexplained) ? sr.unexplained.map(String) : []
+    const seen = _boardStrayKeysSeen.get(tx.txid) || new Set()
+    const freshStray = stray.filter(k => !seen.has(k))
+    stray.forEach(k => seen.add(k)); _boardStrayKeysSeen.set(tx.txid, seen)
+    if(freshStray.length && sr.hint){
+      boardDiag("board:sign:wrong-key", { txid: tx.txid, accountId: signAs, unexplained: stray.map(k => k.slice(-8)), fresh: freshStray.length, accountKeys: sr.accountKeys })
+      notify(`⚠️ Signature saved but it will NOT count: ${sr.hint}`, "warning", { timeout: 15000, txid: tx.txid })
       try { if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system) window.katomiaChat.system(`⚠️ ${signAs}: ${sr.hint}`) } catch {}
+    } else if(stray.length){
+      // only an EARLIER tap's stray key is outstanding: this signature is fine
+      boardDiag("board:sign:stray-earlier", { txid: tx.txid, accountId: signAs, unexplained: stray.map(k => k.slice(-8)) })
+      notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
     } else if(sr && sr.hint && !sr.ready){
       notify(`✍ Signed as ${signAs} — ${sr.hint}`, "success", { timeout: 6000 })
     } else {
@@ -5801,13 +5824,31 @@ function ringFooter(mine){
     const signSt = (boardSigning && boardSignStatus && boardSignStatus.txid === boardSigning.tx?.txid)
       ? boardSignStatus.byAccount || {} : {}
     const sends = a => !!boardSigning?.legs[hacOf(a)]?.send?.length
+    // SIGN-PICK1: the PAYER certainly signs and is known the instant the deal is struck — it is
+    // the account in the transaction id (0.0.x@secs.nanos) — so it ranks above the senders
+    const payer = boardSigning?.tx?.txid ? String(boardSigning.tx.txid).split("@")[0] : null
+    const mustRank = a => (hacOf(a) === payer ? 2 : 0) + (sends(a) ? 1 : 0)
     const actable = !actOnly ? mine
       : boardSigning ? mine
-          .filter(a => !!boardSigning.legs[hacOf(a)] && signSt[hacOf(a)] !== "signed" && signSt[hacOf(a)] !== "none")
-          .sort((x, y) => sends(y) - sends(x))   // stable: senders first, join order otherwise
+          .filter(a => (!!boardSigning.legs[hacOf(a)] || hacOf(a) === payer) && signSt[hacOf(a)] !== "signed" && signSt[hacOf(a)] !== "none")
+          .sort((x, y) => mustRank(y) - mustRank(x))   // stable: payer, then senders, join order otherwise
       : mine.filter(a => boardInMyParty(a, getAccounts()))
     const nothingToDo = actOnly && !actable.length
     const listed = nothingToDo ? mine : actable
+    // SIGN-PICK1: at each new strike the bar picks the account that must sign, instead of keeping
+    // whatever was selected while locking (that account stayed listed until the signer read
+    // landed, a second or two later — long enough to tap Sign on it). It also moves on when the
+    // picked account has signed or turns out not to need to. A pick made by hand for THIS strike
+    // is left alone.
+    if(boardSigning){
+      const txNow = boardSigning.tx?.txid || null
+      const st = a => signSt[hacOf(a)]
+      const best = listed.filter(a => st(a) !== "signed" && st(a) !== "none").sort((x, y) => mustRank(y) - mustRank(x))[0] || null
+      const curSel = listed.find(a => a.id === boardSelectedAccount)
+      const done = !curSel || st(curSel) === "signed" || st(curSel) === "none"
+      if(best && _boardManualPickTx !== txNow && (_boardPickedForTx !== txNow || done)) boardSelectedAccount = best.id
+      _boardPickedForTx = txNow
+    }
     if(!boardSelectedAccount || !listed.some(a => a.id === boardSelectedAccount))
       boardSelectedAccount = (listed.find(a => !boardSigning && a.mode !== "lock") || listed[0])?.id || null
 
@@ -5851,6 +5892,7 @@ function ringFooter(mine){
         return
       }
       boardSelectedAccount = sel.value
+      _boardManualPickTx = boardSigning?.tx?.txid || null   // SIGN-PICK1: a hand pick for this strike stands
       render()   // re-highlights the selected wedge
     }
     bar.appendChild(sel)
@@ -5877,7 +5919,7 @@ function ringFooter(mine){
       // thing mid-signing. Now every account shows Sign; non-party accounts
       // sign as a WITNESS (same label per the user's call — the tooltip
       // carries the distinction, no extra visual complexity).
-      const party = !!boardSigning.legs[curHac]
+      const party = !!boardSigning.legs[curHac] || curHac === payer   // SIGN-PICK1: the payer always signs
       lockBtn.className = "ring-footer-lock ring-footer-sign"
       lockBtn.dataset.testid = "sign"          // QA-TESTHOOKS1
       lockBtn.textContent = "✍ Sign"

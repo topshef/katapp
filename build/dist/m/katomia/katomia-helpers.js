@@ -69,6 +69,7 @@
 				if(t){ t.textContent = `${icon} ${message}`; addDetail(t) }   // show the latest state
 				clearTimeout(dupe._timer)
 				if(timeout) dupe._timer = setTimeout(()=>removeNotice(dupe), timeout)
+				if(opts.txid) dupe.dataset.txid = opts.txid
 				return
 			}
 
@@ -91,6 +92,9 @@
 			const el = document.createElement("div")
 			el.className = `notice ${type}`
 			el.dataset.key = key
+			// SIGN-TOASTCLEAR1: a toast about one transaction says so, so that transaction's
+			// success can take it down (katomiaClearNotices)
+			if(opts.txid) el.dataset.txid = opts.txid
 
 			const text = document.createElement("span")
 			text.textContent = `${icon} ${message}`
@@ -128,6 +132,22 @@
 			if(live.length > NOTICE_MAX)
 				live.slice(0, live.length - NOTICE_MAX).forEach(removeNotice)
 		}
+
+		// SIGN-TOASTCLEAR1 (owner 2026-11-07): take down the toasts about one transaction, of the
+		// given types — a success clears that tx's stale warnings. The message stream keeps them.
+		// Returns how many went.
+		function clearNotices({ txid, types = ["warning", "error"] } = {}){
+			const container = document.getElementById("notifications")
+			if(!container || !txid) return 0
+			let n = 0
+			for(const el of [...container.children]){
+				if(el.classList.contains("fade-out") || el.dataset.txid !== String(txid)) continue
+				if(!types.some(t => el.classList.contains(t))) continue
+				removeNotice(el); n++
+			}
+			return n
+		}
+		window.katomiaClearNotices = clearNotices
 
 		function removeNotice(el){
 			if(!el || el.classList.contains("fade-out")) return

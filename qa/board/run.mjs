@@ -1401,6 +1401,73 @@ console.log('INTENTKEY-TIMEOUT1: with an IndexedDB that never answers, the join 
   }
 }
 
+// ── SIGN-PICK1 + SIGN-WHY2 + SIGN-TOASTCLEAR1 (owner 2026-11-07, m-prop~15 14:22Z) ──
+// Tapped Sign 1s after the strike; the bar still had the account selected while locking (it need
+// not sign), so that signed as a witness → "will NOT count"; the right account then signed and was
+// told the same (the pool lists every stray key so far); the tx succeeded with the warning still up.
+console.log('SIGN-PICK1/WHY2/TOASTCLEAR1: the payer is picked the instant the deal is struck; a later right signature is not told it will not count; success clears that tx\'s warnings')
+{
+  const { page, errs } = await open('')
+  const bar = () => page.evaluate(() => ({
+    opts: [...document.querySelectorAll('.ring-footer .ring-footer-accsel option')].map(o => o.value).filter(v => v !== '__add'),
+    sel: document.querySelector('.ring-footer .ring-footer-accsel')?.value || null,
+    btn: document.querySelector('.ring-footer [data-testid="sign"]')?.textContent.trim() || null,
+    title: document.querySelector('.ring-footer [data-testid="sign"]')?.title || null,
+    mine: getAccounts().filter(a => isMyAccount(a)).map(a => a.id) }))
+  // the strike: mine[1] is the PAYER (the account in the txid) and neither account sends; the
+  // selection left over from locking is mine[0], the signer read has not landed
+  await page.evaluate(() => {
+    const m = getAccounts().filter(a => isMyAccount(a)).map(a => a.id.split(':')[1])
+    window.__realDetect = boardDetectSigning
+    window.__qaTx = `${m[1]}@1794061350.316000000`
+    window.boardDetectSigning = () => ({ tx: { txid: window.__qaTx, txhex: '00' }, legs: { [m[0]]: { recv: [{ assetId: 'HBAR', amount: 1 }], send: [] }, [m[1]]: { recv: [{ assetId: 'HBAR', amount: 1 }], send: [] } }, status: 'pending', expiry: Date.now() + 60000 })
+    boardSignStatus = null
+    boardSelectedAccount = getAccounts().filter(a => isMyAccount(a))[0].id
+    render()
+  }); await page.waitForTimeout(300)
+  const a = await bar()
+  ok(a.sel === a.mine[1] && a.opts[0] === a.mine[1] && /Sign/.test(a.btn || ''), 'struck: the payer is selected at once — the account selected while locking does not carry over', JSON.stringify(a))
+  // a hand pick for this strike stands
+  await page.evaluate(() => { const s = document.querySelector('.ring-footer .ring-footer-accsel'); s.value = getAccounts().filter(a => isMyAccount(a))[0].id; s.dispatchEvent(new Event('change')) }); await page.waitForTimeout(300)
+  const b = await bar()
+  ok(b.sel === b.mine[0], 'a pick made by hand for this strike is kept', JSON.stringify(b))
+  // the next strike picks again
+  await page.evaluate(() => { window.__qaTx = window.__qaTx.replace('.316', '.999'); render() }); await page.waitForTimeout(300)
+  const c = await bar()
+  ok(c.sel === c.mine[1], 'the next strike picks the payer again', JSON.stringify(c))
+  // the payer has no legs at all: still listed, still first, and its Sign is not "as witness"
+  await page.evaluate(() => { const m = getAccounts().filter(a => isMyAccount(a)).map(a => a.id.split(':')[1]); const d = window.boardDetectSigning(); delete d.legs[m[1]]; window.__qaTx = window.__qaTx.replace('.999', '.555'); window.boardDetectSigning = () => ({ ...d, tx: { ...d.tx, txid: window.__qaTx } }); render() }); await page.waitForTimeout(300)
+  const d = await bar()
+  ok(d.sel === d.mine[1] && d.opts.includes(d.mine[1]) && !/witness/i.test(d.title || ''), 'a payer with no legs is still listed, picked, and not called a witness', JSON.stringify(d))
+  // SIGN-WHY2: wrong account first (a stray key), then the right one; the pool reports the
+  // stray key both times. Stubbed wallet and save endpoint.
+  await page.route('**/future/?action=txSave', r => r.fulfill({ status: 200, contentType: 'application/json',
+    body: JSON.stringify({ result: { signingReadiness: { ready: false, unexplained: ['302a300506032b6570032100e81f0882'], hint: 'a key this transaction does not need signed it', accountKeys: {} } } }) }))
+  const sign = i => page.evaluate(async i => {
+    const acc = getAccounts().filter(a => isMyAccount(a))[i]
+    const hac = acc.id.split(':')[1]
+    window.WC = { getAccount: async () => hac, setActiveAccount: async () => {}, ensureNetwork: async () => {}, signTx: async () => ({ signedTransactionHex: '00' }) }
+    await boardDirectSign(acc)
+    await new Promise(r => setTimeout(r, 300))
+    return [...document.querySelectorAll('#notifications .notice')].filter(n => !n.classList.contains('fade-out')).map(n => ({ type: [...n.classList].find(c => c !== 'notice'), text: n.textContent, txid: n.dataset.txid || null }))
+  }, i)
+  const w1 = await sign(0)
+  ok(w1.some(n => n.type === 'warning' && /will NOT count/.test(n.text) && n.txid !== null), 'the stray signature is told it will NOT count — and the toast names its transaction', JSON.stringify(w1))
+  const w2 = await sign(1)
+  const after = w2.filter(n => !w1.some(o => o.text === n.text))
+  ok(!after.some(n => /will NOT count/.test(n.text)) && after.some(n => /Signed as/.test(n.text)), 'the right account signing next is told "Signed as", not "will NOT count" about the earlier stray key', JSON.stringify({ w1, w2 }))
+  // an unrelated warning, and the success
+  const r = await page.evaluate(() => {
+    notify('unrelated warning', 'warning', { timeout: 0, key: 'qa-unrelated' })
+    boardShowResult(window.__qaTx, true, 'stale', 'socket')
+    return new Promise(res => setTimeout(() => res([...document.querySelectorAll('#notifications .notice')].filter(n => !n.classList.contains('fade-out')).map(n => ({ type: [...n.classList].find(c => c !== 'notice'), text: n.textContent }))), 700))
+  })
+  ok(!r.some(n => /will NOT count/.test(n.text)) && r.some(n => /unrelated warning/.test(n.text)), 'the success takes down that transaction\'s warnings; an unrelated warning stays', JSON.stringify(r))
+  await page.evaluate(() => { window.boardDetectSigning = window.__realDetect; boardSignStatus = null; render() })
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
 // ── WC-ANDROIDLINK3 (owner 2026-11-07): HashPack's own link for each request's redirect, and the repair ──
 // Sessions are seeded the way WalletConnect's storage HOLDS them ("wc@2:client:0.3:session"), not
 // as the sign client names them ("…//session"): WC-ANDROIDLINK1's test seeded the named form and
