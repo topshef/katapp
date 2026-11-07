@@ -1362,6 +1362,45 @@ console.log('INTENTKEY-SAFE1: the private intent key lives in IndexedDB, non-ext
   }
 }
 
+// ── INTENTKEY-TIMEOUT1 (owner 2026-11-07): a key store that never answers must not blank a circle ──
+console.log('INTENTKEY-TIMEOUT1: with an IndexedDB that never answers, the join still gets its key and nothing waits forever')
+{
+  const { generateKeyPairSync } = await import('node:crypto')
+  const hang = () => { indexedDB.open = () => ({ set onsuccess(f){}, set onerror(f){}, set onupgradeneeded(f){}, set onblocked(f){} }) }
+  // a browser that already has a key (public half in localStorage, private half in the stalled store)
+  {
+    const pub = { publicKeyJwk: generateKeyPairSync('ed25519').publicKey.export({ format: 'jwk' }) }
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+    await ctx.addInitScript(([p, h]) => { localStorage.setItem('katomiaPlayerKeypair', JSON.stringify(p)); eval('(' + h + ')()') }, [pub, hang.toString()])
+    const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message))
+    await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
+    const r = await page.evaluate(async () => {
+      const t0 = performance.now()
+      const hex = await getKatomiaOrderPubkeyHex()
+      const fast = performance.now() - t0
+      const t1 = performance.now()
+      let err = ''; try { await getOrCreatePlayerKeypair() } catch (e) { err = e.message }
+      return { hex, fast: Math.round(fast), slow: Math.round(performance.now() - t1), err, stored: JSON.parse(localStorage.getItem('katomiaPlayerKeypair')) }
+    })
+    const wantHex = Buffer.from(pub.publicKeyJwk.x, 'base64url').toString('hex')
+    ok(r.hex === wantHex && r.fast < 50, 'the join\'s public key comes straight from localStorage, without touching the stalled store', JSON.stringify({ fast: r.fast, same: r.hex === wantHex }))
+    ok(/did not answer/.test(r.err) && r.slow < 3500, 'signing gives up after ~2s with a clear error instead of hanging', JSON.stringify({ err: r.err, ms: r.slow }))
+    ok(r.stored.publicKeyJwk.x === pub.publicKeyJwk.x && !r.stored.privateKeyJwk, 'and a stall is not mistaken for a lost key: the identity is untouched', JSON.stringify(r.stored))
+    ok(!errs.length, 'no page errors', JSON.stringify(errs))
+    await ctx.close()
+  }
+  // a brand-new browser whose store never answers: it still gets a key, the old way
+  {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
+    await ctx.addInitScript(h => eval('(' + h + ')()'), hang.toString())
+    const page = await ctx.newPage()
+    await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
+    const r = await page.evaluate(async () => { const t = performance.now(); const kp = await getOrCreatePlayerKeypair(); return { ms: Math.round(performance.now() - t), keys: Object.keys(JSON.parse(localStorage.getItem('katomiaPlayerKeypair'))), x: !!kp.publicKeyJwk.x } })
+    ok(r.x && r.ms < 3500 && r.keys.includes('privateKeyJwk'), 'a new browser with a stalled store falls back to localStorage within ~2s and can sign', JSON.stringify(r))
+    await ctx.close()
+  }
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — both board shapes hold'))
 process.exit(failed ? 1 : 0)

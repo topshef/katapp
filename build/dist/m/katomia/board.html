@@ -1360,7 +1360,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "73a9cd2"
+  window.KFLOW_COMMIT = "bf59542"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1396,20 +1396,20 @@ window.katomiaNet = (() => {
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 
 <script type="module" src="katomia-init.js?v=1793403648"></script>
-<script src="katomia-core.js?v=1793993623"></script>
+<script src="katomia-core.js?v=1794010719"></script>
 <script src="katomia-localdb.js?v=1793403648"></script>
 <script src="kemoji.js?v=1793403648"></script>
 <script src="katomia-helpers.js?v=1793403648"></script>
 <script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="katomia-enrich.js?v=1793992212"></script>
-<script src="katomia-network.js?v=1793403648"></script>
+<script src="katomia-network.js?v=1794010898"></script>
 <!-- KDIAG-BOARDBLIND1: board.php never loaded this, so katomiaDiagSend()
      (the self-contained /diag sender — the create-order-modal comment in this
      file explains window.kdiag from the kpool widget is lazy and NOT reliably
      present here) didn't exist on the board page at all: no katomia:build, no
      wc:version, and boardDirectSign()'s window.kdiag?.() calls were silent
      no-ops. Ring16 direct-sign attempts left zero trace in kdiag. -->
-<script src="katomia-modals.js?v=1793403648"></script>
+<script src="katomia-modals.js?v=1794010898"></script>
 <script src="katomia-render.js?v=1793403648"></script>
 <!-- TXSTATUS-CONSOLIDATE1: the tx/wallet status controller. Must load BEFORE
      katomia-board.js, whose reporters feed it and whose boardShowResult
@@ -1436,7 +1436,7 @@ window.katomiaNet = (() => {
      katomia-addaccount.js joined later the same day: the footer's ➕ Add
      account now opens the shared composer modal (addaccount-modal.php)
      instead of the prompt() stopgap. -->
-<script src="katomia-profile.js?v=1793407665"></script>
+<script src="katomia-profile.js?v=1794010719"></script>
 <script src="katomia-auth.js?v=1793403648"></script>
 <script src="katomia-addaccount.js?v=1793403648"></script>
 

@@ -527,11 +527,20 @@ function connect(onOpenAction){
 		// was silently refused server-side ("socket.playerToken missing", 2026-07-07).
 		let intentPublicKey = cachedIntentKey
 		if(!intentPublicKey){
-			try { if(typeof getKatomiaOrderPubkeyHex === "function") intentPublicKey = cachedIntentKey = await getKatomiaOrderPubkeyHex() }
-			catch(e){ console.error("[join] intent key unavailable", e) }
+			// INTENTKEY-TIMEOUT1 (owner 2026-11-07, blank circle on lab1): the join never waits more
+			// than 3s for the key. Without it the board shows nothing at all; without the key it
+			// shows everything and only the 💠/△ marker waits for the next join.
+			try {
+				if(typeof getKatomiaOrderPubkeyHex === "function")
+					intentPublicKey = cachedIntentKey = await Promise.race([getKatomiaOrderPubkeyHex(),
+						new Promise((_, rej) => setTimeout(() => rej(new Error("intent key: no answer in 3s")), 3000))])
+			}
+			catch(e){ console.error("[join] intent key unavailable", e); window.kflow?.("game:join:key", "unavailable", { gameId, err: String(e?.message || e).slice(0, 120) }) }
 		}
 
 		const payload = buildJoinPayload(intentPublicKey)
+		// JS-ERRORS1: the join's own trail — did it go, keyed or not, and how long it waited
+		try { window.kdiag?.("ws:join:sent", { gameId, keyed: !!intentPublicKey }) } catch(_){}
 
     window.kflow?.("game:join", intentPublicKey ? "keyed" : "plain", { gameId })
     socket.send(JSON.stringify(payload))
@@ -748,6 +757,11 @@ async function katomiaHandleFrame(msg){
 			}
 		}
 		if(data.type === "game_error") return  // errors included in notify
+		// JS-ERRORS1: the first table state this page receives — the moment a board can draw
+		if(data.type === "game_state" && !window.__kFirstState){
+			window.__kFirstState = true
+			try { window.kdiag?.("ws:state:first", { gameId: data.gameId, accounts: Object.keys(data.state?.accounts || {}).length, spectator: !!data.spectator }) } catch(_){}
+		}
 
 		// STATSYNC1 P5: normalise an incremental update into a full game_state (or
 		// bail while a gap refresh is in flight) — everything below stays unchanged.

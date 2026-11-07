@@ -117,6 +117,16 @@
     //   - no IndexedDB (some private windows): the old localStorage JWK path, so signing never
     //     breaks; that case is logged and the key is still created non-extractable when it can be.
     const INTENT_DB = "katomia-keys", INTENT_STORE = "keys", INTENT_ID = "intent"
+    // INTENTKEY-TIMEOUT1 (owner 2026-11-07: on lab1 "only the home page renders… when I tap into
+    // a circle I get a blank page"). The circle's socket join waited on this key, and IndexedDB
+    // can simply never answer (iOS Safari is known to leave indexedDB.open hanging) — so the join
+    // was never sent and the board never drew. Every IndexedDB step is now bounded, and a store
+    // that does not answer is NOT treated as a lost key (that would mint a new identity on a
+    // mere stall): the caller gets an error, the join goes ahead keyless, the next call retries.
+    const INTENT_DB_MS = 2000
+    function intentTimed(p, what){
+      return Promise.race([p, new Promise((_, rej) => setTimeout(() => rej(new Error("intent key store did not answer: " + what)), INTENT_DB_MS))])
+    }
     function intentDb(){
       return new Promise((resolve, reject) => {
         if (!window.indexedDB) return reject(new Error("no IndexedDB"))
@@ -158,25 +168,31 @@
 
       if (stored?.publicKeyJwk) {
         try {
-          // 1. the current shape: public half here, private CryptoKey in IndexedDB
-          const held = await intentKeyGet().catch(() => null)
-          if (held && !stored.privateKeyJwk)
-            return { publicKey: await publicOf(stored.publicKeyJwk), privateKey: held, publicKeyJwk: stored.publicKeyJwk }
+          // 1. the current shape: public half here, private CryptoKey in IndexedDB. A store that
+          //    does not answer throws (INTENTKEY-TIMEOUT1) — never mistaken for "no key".
+          if (!stored.privateKeyJwk) {
+            const held = await intentTimed(intentKeyGet(), "read")
+            if (held)
+              return { publicKey: await publicOf(stored.publicKeyJwk), privateKey: held, publicKeyJwk: stored.publicKeyJwk }
+          }
           // 2. an older browser: move the JWK into a non-extractable key, then drop the JWK
           if (stored.privateKeyJwk) {
             const privateKey = await crypto.subtle.importKey("jwk", stored.privateKeyJwk, { name: "Ed25519" }, false, ["sign"])
             const publicKey = await publicOf(stored.publicKeyJwk)
             try {
-              await intentKeyPut(privateKey)
+              await intentTimed(intentKeyPut(privateKey), "move")   // the JWK is only deleted once stored
               localStorage.setItem(PLAYER_KEY_STORAGE, JSON.stringify({ publicKeyJwk: stored.publicKeyJwk }))
             } catch (err) {
               console.warn("[intent key] IndexedDB unavailable — the key stays in localStorage", err)
             }
             return { publicKey, privateKey, publicKeyJwk: stored.publicKeyJwk }
           }
-          // 3. public half without its private key (IndexedDB cleared on its own): a new key
+          // 3. public half, and the store ANSWERED that it holds no private key (IndexedDB
+          //    cleared on its own): a new key
           console.warn("[intent key] private key missing — minting a new one")
         } catch (err) {
+          // INTENTKEY-TIMEOUT1: a stalled store is not a lost key — keep the identity, fail this call
+          if (/did not answer/.test(err?.message || "")) throw err
           console.warn("Failed to restore keypair, regenerating", err)
         }
       }
@@ -185,7 +201,7 @@
       let keypair = await crypto.subtle.generateKey({ name: "Ed25519" }, false, ["sign", "verify"])
       const publicKeyJwk = await crypto.subtle.exportKey("jwk", keypair.publicKey)   // public keys always export
       try {
-        await intentKeyPut(keypair.privateKey)
+        await intentTimed(intentKeyPut(keypair.privateKey), "store")
         localStorage.setItem(PLAYER_KEY_STORAGE, JSON.stringify({ publicKeyJwk }))
       } catch (err) {
         // no IndexedDB: fall back to the old shape so the key survives a reload at all

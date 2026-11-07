@@ -418,6 +418,11 @@ function renderKatomiaAvatar(pubkeyHex){
 }
 
 async function getKatomiaOrderPubkeyHex(){
+  // INTENTKEY-TIMEOUT1: the public half is in localStorage whenever this browser has a key, and
+  // that is all the join (and the profile's avatar) needs — so read it without touching the
+  // private key's store at all. Only a browser with no key yet waits to mint one.
+  const known = katomiaMyIntentKeyHex()
+  if(known) return known
   const { publicKeyJwk } = await getOrCreatePlayerKeypair()
   return jwkXToHex(publicKeyJwk.x)
 }

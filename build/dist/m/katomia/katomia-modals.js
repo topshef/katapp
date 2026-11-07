@@ -389,6 +389,28 @@ function katomiaModalDiagSequence(type){
 // even if the modal is never opened
 katomiaDiagSend("katomia:build", { jsBuild: KATOMIA_JS_BUILD, cssBuildApplied: readAppliedCssBuild(), href: location.href })
 
+// JS-ERRORS1 (owner 2026-11-07, a blank circle on lab1 that left no trail): an uncaught error or
+// rejected promise used to reach nobody — the diag log showed the page loading and then nothing.
+// Now each one is a diag line (message, where, the top of the stack), at most 8 per page so a
+// throwing render loop cannot flood the log.
+;(() => {
+  let sent = 0
+  const report = (kind, msg, where, stack) => {
+    if(sent >= 8) return
+    sent++
+    try { katomiaDiagSend("js:" + kind, { msg: String(msg || "").slice(0, 300), where: String(where || "").slice(0, 200),
+      stack: String(stack || "").split("\n").slice(0, 4).join(" | ").slice(0, 600) }) } catch {}
+  }
+  window.addEventListener("error", e => {
+    if(e.target && e.target !== window) return          // a failed <img>/<script> load, not a JS error
+    report("error", e.message, (e.filename || "") + ":" + e.lineno + ":" + e.colno, e.error?.stack)
+  })
+  window.addEventListener("unhandledrejection", e => {
+    const r = e.reason
+    report("rejection", r?.message || r, "", r?.stack)
+  })
+})()
+
 // Record which WalletConnect bundle is live, so a smoke test can be confirmed
 // from the server-side kdiag logs. Two signals:
 //  • scriptSrc — the kwc.iife.js URL, which carries the snapshot/version segment
