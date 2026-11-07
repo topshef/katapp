@@ -395,7 +395,12 @@ katomiaDiagSend("katomia:build", { jsBuild: KATOMIA_JS_BUILD, cssBuildApplied: r
 // throwing render loop cannot flood the log.
 ;(() => {
   let sent = 0
+  // WalletConnect's relay throws "emitting session_ping:<id> without any listeners" when a ping
+  // answer lands after its waiter gave up (a 4s ping to a wallet in the background). It is the
+  // library talking to itself, not a page fault, and it used up the 8 lines a real error needs.
+  const NOISE = /emitting session_ping:\S* without any listeners/
   const report = (kind, msg, where, stack) => {
+    if(NOISE.test(String(msg || ""))) return
     if(sent >= 8) return
     sent++
     try { katomiaDiagSend("js:" + kind, { msg: String(msg || "").slice(0, 300), where: String(where || "").slice(0, 200),

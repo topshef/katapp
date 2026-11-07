@@ -1401,48 +1401,127 @@ console.log('INTENTKEY-TIMEOUT1: with an IndexedDB that never answers, the join 
   }
 }
 
-// ── WC-ANDROIDLINK1 (owner 2026-11-07): no more wc: redirects for HashPack to misread as a pairing ──
-console.log('WC-ANDROIDLINK1: a wc: deep-link choice becomes the wallet\'s own link, or no redirect — never a fake pairing URI')
+// ── WC-ANDROIDLINK2 (owner 2026-11-07): every request wakes the wallet on Android ──
+// WC-ANDROIDLINK1's test seeded sessions under "wc@2:client:0.3//session" — the key as the sign
+// client NAMES it — and passed, while on the phones WalletConnect's storage had normalised it to
+// "wc@2:client:0.3:session" and the shim found nothing. Seed it the way the bundle stores it.
+console.log('WC-ANDROIDLINK2: the redirect goes to the wallet\'s own link, is checked, and falls back to the wc: link that always wakes it')
 {
-  const ctx = await browser.newContext({ viewport: { width: 390, height: 800 } })
-  const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message))
-  await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
-  // write sessions the way WalletConnect's keyvaluestorage does: IndexedDB, JSON string per key
-  const seed = (redirect) => page.evaluate(r => new Promise(res => {
-    const sessions = [{ topic: 'old', expiry: 1, peer: { metadata: { name: 'Old', redirect: { native: 'old://' } } } },
-                      { topic: 't1', expiry: 2e9, peer: { metadata: { name: 'HashPack', url: 'https://www.hashpack.app', ...(r ? { redirect: r } : {}) } } }]
+  const ANDROID = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36'
+  const WEBVIEW = 'Mozilla/5.0 (Linux; Android 14; Pixel 8; wv) AppleWebKit/537.36 (KHTML, like Gecko) Version/4.0 Chrome/157.0.0.0 Mobile Safari/537.36'
+  // record window.open before any page script runs: the shim keeps the original as its rawOpen
+  const recorder = () => {
+    window.__opened = []
+    window.open = function(url, target){ window.__opened.push([String(url), target || null]); return null }
+    let hidden = false
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => hidden ? 'hidden' : 'visible' })
+    window.__hide = () => { hidden = true; document.dispatchEvent(new Event('visibilitychange')) }
+    window.__show = () => { hidden = false }
+    document.hasFocus = () => !hidden
+  }
+  const open = async (ua) => {
+    const ctx = await browser.newContext({ viewport: { width: 390, height: 800 }, userAgent: ua })
+    await ctx.addInitScript(recorder)
+    const page = await ctx.newPage(); const errs = []; page.on('pageerror', e => errs.push(e.message))
+    await page.goto(`${BASE}/board.html?demo=1`, { waitUntil: 'networkidle' })
+    await page.evaluate(() => { window.__diag = []; window.kdiag = (m, d) => window.__diag.push([m, d]) })
+    return { ctx, page, errs }
+  }
+  // sessions exactly as WalletConnect's keyvaluestorage holds them: IndexedDB, normalised key, JSON string
+  const seed = (page, meta) => page.evaluate(m => new Promise(res => {
+    const sessions = [{ topic: 'old', pairingTopic: 'p-old', expiry: 1, peer: { metadata: { name: 'Old', redirect: { native: 'old://' } } } },
+                      { topic: 't1', pairingTopic: 'p1', expiry: 2e9, peer: { metadata: m } }]
     const q = indexedDB.open('WALLET_CONNECT_V2_INDEXED_DB')
     q.onupgradeneeded = () => q.result.createObjectStore('keyvaluestorage')
-    q.onsuccess = () => { const tx = q.result.transaction('keyvaluestorage', 'readwrite'); tx.objectStore('keyvaluestorage').put(JSON.stringify(sessions), 'wc@2:client:0.3//session'); tx.oncomplete = () => { q.result.close(); res() } }
-  }), redirect)
-  const run = (stored) => page.evaluate(async c => {
-    localStorage.setItem('WALLETCONNECT_DEEPLINK_CHOICE', JSON.stringify(c))
+    q.onsuccess = () => { const tx = q.result.transaction('keyvaluestorage', 'readwrite'); tx.objectStore('keyvaluestorage').put(JSON.stringify(sessions), 'wc@2:client:0.3:session'); tx.oncomplete = () => { q.result.close(); res() } }
+  }), meta)
+  const REQ = 'wc:p1@2/wc?requestId=1762500000000001&sessionTopic=t1'   // what the sign client opens from the Android choice
+  const redirect = (page, wait = 0) => page.evaluate(async ([u, w]) => {
+    window.__opened.length = 0
     await window.katomiaFixWcDeepLink('qa')
-    return JSON.parse(localStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE'))
-  }, stored)
-  const wcChoice = { href: 'wc:6a25ce9e89626f23ced4ac6@2', name: 'Android' }   // what the modal stores on Android
+    window.open(u, '_self', 'noreferrer noopener')
+    const first = window.__opened.slice()
+    if(w) await new Promise(r => setTimeout(r, w))
+    return { first, all: window.__opened.slice(), memo: JSON.parse(localStorage.getItem('katomia.wc.walletLinks') || '{}'), diag: window.__diag.map(x => x[0] + ':' + (x[1]?.outcome || x[1]?.via || '')) }
+  }, [REQ, wait])
+  const HASHPACK = { name: 'HashPack', url: 'https://www.hashpack.app', description: 'HashPack', icons: [] }
 
-  await seed({ native: 'hashpack://', universal: 'https://link.hashpack.app' })
-  const a = await run(wcChoice)
-  ok(a.href === 'hashpack://' && a.name === 'HashPack', 'a wc: choice becomes the link the connected wallet publishes (newest session, native first)', JSON.stringify(a))
-  await seed({ universal: 'https://link.example.app' })
-  const b = await run(wcChoice)
-  ok(b.href === 'https://link.example.app', 'a wallet with only a universal link gets that', JSON.stringify(b))
-  await seed(null)
-  const c = await run(wcChoice)
-  ok(c.href === null, 'a wallet that publishes no link gets no redirect (the sign client skips a non-string href)', JSON.stringify(c))
-  const d = await run({ href: 'https://link.example.app/', name: 'Example' })
-  ok(d.href === 'https://link.example.app/', 'a choice that is not a wc: link is left alone', JSON.stringify(d))
-  const w = await page.evaluate(() => ({ has: !!window.WC, wrapped: window.WC?.__katomiaDeeplinkFix || 0 }))
-  ok(!w.has || w.wrapped >= 3, "the wallet's request functions are wrapped so the check runs before each one", JSON.stringify(w))
-  // on load: a page opened with a bad choice already stored corrects it by itself
-  await seed({ native: 'hashpack://' })
-  await page.evaluate(() => localStorage.setItem('WALLETCONNECT_DEEPLINK_CHOICE', JSON.stringify({ href: 'wc:abc@2', name: 'Android' })))
-  await page.reload({ waitUntil: 'networkidle' }); await page.waitForTimeout(800)
-  const e = await page.evaluate(() => JSON.parse(localStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE')))
-  ok(e.href === 'hashpack://', 'and a page that loads with a wc: choice stored fixes it on its own', JSON.stringify(e))
-  ok(!errs.length, 'no page errors', JSON.stringify(errs))
-  await ctx.close()
+  {
+    const { ctx, page, errs } = await open(ANDROID)
+    await seed(page, HASHPACK)
+    const a = await redirect(page, 2200)
+    ok(a.first.length === 1 && a.first[0][0] === 'hashpack://wc?requestId=1762500000000001&sessionTopic=t1' && a.first[0][1] === '_self',
+      'Android, HashPack publishes no link: the redirect goes to hashpack:// (not the wc: pairing URI HashPack rejects), found under the NORMALISED session key', JSON.stringify(a.first))
+    ok(a.all.length === 2 && a.all[1][0] === REQ && a.memo['hashpack://']?.ok === false,
+      'nothing came forward within the check: the original wc: link is opened at once, and hashpack:// is remembered as not working', JSON.stringify({ all: a.all, memo: a.memo }))
+    const b = await redirect(page, 2200)
+    ok(b.all.length === 1 && b.all[0][0] === REQ, 'the next request goes straight to the wc: link (never stranded, never tried twice)', JSON.stringify(b.all))
+    // the wallet DOES come forward: the page goes to the background
+    await page.evaluate(() => localStorage.removeItem('katomia.wc.walletLinks'))
+    const c = await page.evaluate(async u => {
+      window.__opened.length = 0
+      await window.katomiaFixWcDeepLink('qa')
+      window.open(u, '_self'); setTimeout(() => window.__hide(), 300)
+      await new Promise(r => setTimeout(r, 2200)); window.__show()
+      return { all: window.__opened.slice(), memo: JSON.parse(localStorage.getItem('katomia.wc.walletLinks') || '{}'), link: window.katomiaWalletLink() }
+    }, REQ)
+    ok(c.all.length === 1 && c.memo['hashpack://']?.ok === true, 'when the page goes to the background (HashPack came forward) there is no fallback, and the link is remembered as working', JSON.stringify(c))
+    ok(c.link && c.link.href === 'hashpack://' && c.link.name === 'HashPack', 'and the board\'s "Open HashPack" nudge gets that link', JSON.stringify(c.link))
+    // the choice WC-ANDROIDLINK1 left on the phones ({href:null}) is put back, so the redirect happens at all
+    const h = await page.evaluate(async () => {
+      localStorage.setItem('WALLETCONNECT_DEEPLINK_CHOICE', JSON.stringify({ href: null, name: 'HashPack', note: 'redirect skipped' }))
+      await window.katomiaFixWcDeepLink('qa')
+      const healed = JSON.parse(localStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE'))
+      localStorage.removeItem('WALLETCONNECT_DEEPLINK_CHOICE')
+      await window.katomiaFixWcDeepLink('qa')
+      return { healed, missing: JSON.parse(localStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE')) }
+    })
+    ok(h.healed?.href === 'wc:p1@2' && h.healed?.name === 'Android' && h.missing?.href === 'wc:p1@2',
+      'a stored choice with no usable href (or none at all) is put back the way the modal writes it, from the session\'s pairing topic', JSON.stringify(h))
+    // a pairing URI the modal opens is never touched
+    const pair = await page.evaluate(() => { window.__opened.length = 0; const u = 'wc:p9@2?relay-protocol=irn&symKey=ab12&expiryTimestamp=1'; window.open(u, '_self'); return window.__opened })
+    ok(pair.length === 1 && pair[0][0].includes('relay-protocol=irn'), 'the pairing link itself passes through untouched', JSON.stringify(pair))
+    // the wallet publishes its own links: native first, then universal (https, a new tab, trusted, no check)
+    await seed(page, { ...HASHPACK, redirect: { native: 'hashpack://', universal: 'https://link.hashpack.app' } })
+    await page.evaluate(() => localStorage.removeItem('katomia.wc.walletLinks'))
+    const d = await redirect(page, 2200)   // let its check run out here, not inside the next case
+    ok(d.first[0]?.[0] === 'hashpack://wc?requestId=1762500000000001&sessionTopic=t1', 'a published native link is used first', JSON.stringify(d.first))
+    await seed(page, { name: 'Example', url: 'https://example.app', redirect: { universal: 'https://link.example.app/' } })
+    const e = await redirect(page, 2200)
+    ok(e.all.length === 1 && e.all[0][0] === 'https://link.example.app/wc?requestId=1762500000000001&sessionTopic=t1' && e.all[0][1] === '_blank',
+      'a wallet with only a universal link gets it, in a new tab, with no fallback', JSON.stringify(e.all))
+    await seed(page, { name: 'Unknown', url: 'https://unknown.example' })
+    const f = await redirect(page, 2200)
+    ok(f.all.length === 1 && f.all[0][0] === REQ, 'a wallet with no link of its own keeps the wc: link — it wakes the wallet, which matters more than the error', JSON.stringify(f.all))
+    ok(f.diag.some(x => x.startsWith('wc:redirect:')) && a.diag.some(x => x === 'wc:redirect:result:nothing-opened'), 'each redirect and its outcome is a diag line', JSON.stringify(a.diag.concat(f.diag)))
+    const w = await page.evaluate(() => ({ has: !!window.WC, wrapped: window.WC?.__katomiaDeeplinkFix || 0 }))
+    ok(!w.has || w.wrapped >= 3, "the wallet's request functions are wrapped so the sessions are read before each request", JSON.stringify(w))
+    // JS-ERRORS1: WalletConnect's late-ping noise no longer takes the 8 error lines
+    const n = await page.evaluate(() => {
+      const sent = []; window.katomiaDiagSend = (k, d) => sent.push([k, d?.msg])
+      window.dispatchEvent(new ErrorEvent('error', { message: 'Uncaught Error: emitting session_ping:1762500000000001 without any listeners 2176' }))
+      window.dispatchEvent(new ErrorEvent('error', { message: 'Uncaught TypeError: real fault' }))
+      return sent
+    })
+    ok(n.length === 1 && /real fault/.test(n[0][1]), 'a late WalletConnect ping is not reported as a page error; a real error still is', JSON.stringify(n))
+    // the toast's app link opens in place, an https link in a new tab
+    const t = await page.evaluate(() => {
+      notify('Waiting for HashPack', 'warning', { link: { href: 'hashpack://', text: 'Open HashPack' }, key: 'qa-a' })
+      notify('Done', 'success', { link: { href: 'https://hashscan.io/testnet', text: 'tx' }, key: 'qa-b' })
+      return [...document.querySelectorAll('a.notice-link')].map(a => [a.getAttribute('href'), a.target])
+    })
+    ok(t.some(([h, g]) => h === 'hashpack://' && g === '_self') && t.some(([h, g]) => h.startsWith('https://hashscan') && g === '_blank'), 'the nudge\'s "Open HashPack" opens in place; an https link still opens a new tab', JSON.stringify(t))
+    ok(!errs.length, 'no page errors', JSON.stringify(errs))
+    await ctx.close()
+  }
+  for(const [label, ua] of [['desktop', undefined], ['a wallet\'s in-app browser (Android WebView)', WEBVIEW]]){
+    const { ctx, page, errs } = await open(ua)
+    await seed(page, HASHPACK)
+    const r = await redirect(page, 2200)
+    const choice = await page.evaluate(async () => { localStorage.setItem('WALLETCONNECT_DEEPLINK_CHOICE', JSON.stringify({ href: null })); await window.katomiaFixWcDeepLink('qa'); return JSON.parse(localStorage.getItem('WALLETCONNECT_DEEPLINK_CHOICE')) })
+    ok(r.all.length === 1 && r.all[0][0] === REQ && choice.href === null && !errs.length, `${label}: nothing is changed`, JSON.stringify({ r: r.all, choice, errs }))
+    await ctx.close()
+  }
 }
 
 await browser.close(); server.close()

@@ -975,7 +975,8 @@ window.katomiaTxStatus?.subscribe(ev => {
   if(ev.type === "verdict") boardShowResult(ev.txid, ev.ok, ev.tier, ev.source)
   // advice toasts carry their txid as detail text — every message names its tx
   else if(ev.type === "advice" && ev.detail?.message)
-    notify(ev.detail.message, ev.detail.level || "warning", { timeout: ev.detail.timeout ?? 6000, detail: ev.txid })
+    notify(ev.detail.message, ev.detail.level || "warning", { timeout: ev.detail.timeout ?? 6000, detail: ev.txid,
+      ...(ev.detail.link?.href ? { link: ev.detail.link } : {}) })
 })
 
 let _boardTxSocket = null
@@ -5327,6 +5328,23 @@ async function boardDirectSign(account){
     // 25s in, note it in kdiag; 60s, tell the user what to try. The real fix
     // (relay health-check/re-subscribe inside the KWC bundle) is WC-RELAYHEALTH1.
     const signT0 = Date.now()
+    // WC-ANDROIDLINK2 (owner 2026-11-07, two Android phones: "I had to open HashPack on my own,
+    // and then there was a pile of requests"): on Android a wallet in the background does not
+    // hear the relay. The redirect (assets/js/kwc-deeplink.js) normally brings it forward; if
+    // the board is still the page in front 8s later, it did not — say so now, while the tx is
+    // still valid, with a tap that opens the wallet when a link for it is known (a tap always
+    // may open an app; a redirect without one sometimes may not). Never a wc: link: that is the
+    // "pair() uri#relay-protocol" error.
+    const wd0 = /android/i.test(navigator.userAgent) ? setTimeout(() => {
+      if(document.visibilityState !== "visible") return
+      const wl = window.katomiaWalletLink?.() || null
+      const who = wl?.name || "your wallet"
+      boardDiag("board:sign:nudge", { txid: tx.txid, accountId: signAs, waitedMs: Date.now() - signT0, link: wl ? wl.source : null })
+      boardReportTxAdvice(tx.txid, "watchdog", {
+        message: `Waiting for ${who} — on Android it only hears a request while it is open. Open ${who} to approve.`,
+        level: "warning", timeout: 20000,
+        link: wl ? { href: wl.href, text: `Open ${who}` } : null })
+    }, 8000) : null
     const wd1 = setTimeout(() => {
       boardDiag("board:sign:slow", { txid: tx.txid, accountId: signAs, waitedMs: Date.now() - signT0 })
     }, 25000)
@@ -5343,12 +5361,12 @@ async function boardDirectSign(account){
     // watchdogs die AND the in-flight KWC request is cancelled (KWC-CANCELLED,
     // handled silently below) instead of leaking a timer that fires at +120s.
     const attemptId = window.katomiaTxStatus?.attempt(tx.txid, { accountId: signAs,
-      abort: () => { clearTimeout(wd1); clearTimeout(wd2); try { wc.cancelInFlight?.({ label: `signTx:${signAs}`, reason: "superseded or terminal" }) } catch {} } })
+      abort: () => { clearTimeout(wd0); clearTimeout(wd1); clearTimeout(wd2); try { wc.cancelInFlight?.({ label: `signTx:${signAs}`, reason: "superseded or terminal" }) } catch {} } })
     let signedTransactionHex
     try {
       ({ signedTransactionHex } = await wc.signTx({ accountId: signAs, transactionBytes: bytes }))
     } finally {
-      clearTimeout(wd1); clearTimeout(wd2)
+      clearTimeout(wd0); clearTimeout(wd1); clearTimeout(wd2)
       if(attemptId) window.katomiaTxStatus?.attemptDone(attemptId)
     }
     const save = await fetch("/future/?action=txSave", {
