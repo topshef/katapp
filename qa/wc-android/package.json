@@ -1,0 +1,13 @@
+{
+  "name": "katomia-wc-android-qa",
+  "version": "1.0.0",
+  "private": true,
+  "description": "WC-ANDROID-QA1: the real KWC bundle on the lab1 origin, posing as an Android phone, paired through the real WalletConnect relay with a wallet simulator that presents itself as HashPack; records the link each request opens",
+  "scripts": { "test": "node run.cjs" },
+  "dependencies": {
+    "@hashgraph/proto": "2.25.0",
+    "@hashgraph/sdk": "2.81.0",
+    "@walletconnect/sign-client": "2.24.0",
+    "playwright": "1.58.2"
+  }
+}
