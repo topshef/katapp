@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script src="kfade.js?v=1793403648"></script>
-<link rel="stylesheet" href="katomia.css?v=1793403648">
+<link rel="stylesheet" href="katomia.css?v=1794075578">
 <link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648"><title>Katomia — what is a circle?</title>
 <style>
   body{ background:#f7f9fc; color:#2b3038; }
@@ -512,6 +512,7 @@ window.katomiaNet = (() => {
     // No timing guards remain anywhere on this path (user's instruction): dead
     // taps are prevented at the source by touch-action:none on ✕ and ☰.
     if(menu.classList.contains("hidden")){
+      window.katomiaMenu.foldIfIdle?.()   // MENU-GROUPIDLE1: away a while → it opens folded
       window.katomiaNet?.paint()   // MENU-NET1: nerd mode may have changed since
       if(document.getElementById("boardSettingsPanel")) syncView()
     }
@@ -535,13 +536,29 @@ window.katomiaNet = (() => {
     if(remember) try { localStorage.setItem(GROUP_KEY + g.dataset.menuGroup, open ? "1" : "0") } catch {}
     if(open) document.dispatchEvent(new CustomEvent("katomia:menugroup", { detail: { group: g.dataset.menuGroup } }))
   }
+  // MENU-GROUPIDLE1 (owner 2026-11-07: "if you haven't been to the menu for a while … or you've
+  // jumped from home and you're on a new game … collapse it again. The only reason we'd want to
+  // leave it open is if you're … changing quite a few things in one go"). An open group is
+  // remembered only for a RUN of changes: any tap or change inside the menu restarts a 2-minute
+  // clock, tied to this page. Past it — or on another page (a new circle, home) — the menu
+  // opens with every group folded.
+  const USE_KEY = "katomiaMenuUsed", IDLE_MS = 2 * 60 * 1000
+  const markUse = () => { try { localStorage.setItem(USE_KEY, JSON.stringify({ at: Date.now(), path: location.pathname })) } catch {} }
+  const inRun = () => {
+    try { const u = JSON.parse(localStorage.getItem(USE_KEY) || "null"); return !!u && Date.now() - u.at < IDLE_MS && u.path === location.pathname }
+    catch { return false }
+  }
+  const foldAll = () => menu.querySelectorAll(".app-menu-group.is-open[data-menu-group]").forEach(g => setGroup(g, false, true))
+  const runOnLoad = inRun()
   menu.querySelectorAll(".app-menu-group[data-menu-group]").forEach(g => {
     let was = null
     try { was = localStorage.getItem(GROUP_KEY + g.dataset.menuGroup) } catch {}
-    if(was === "1") setGroup(g, true, false)
+    if(was === "1" && runOnLoad) setGroup(g, true, false)
     g.querySelector(":scope > .app-menu-grouphead")?.addEventListener("click", () =>
       setGroup(g, !g.classList.contains("is-open"), true))
   })
+  ;["click", "change", "input"].forEach(t => menu.addEventListener(t, markUse, true))
+  window.katomiaMenu.foldIfIdle = () => { if(!inRun()) foldAll() }
 
   // Diagnostic tripwire (2026-07-14, after board.php shipped without
   // katomia-profile.js and Profile silently no-op'd — same failure shape as
@@ -1737,7 +1754,7 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="katomia-core.js?v=1794010719"></script>
-<script src="katomia-helpers.js?v=1794061747"></script>
+<script src="katomia-helpers.js?v=1794075607"></script>
 <script src="kemoji.js?v=1793403648"></script>
 <script src="katomia-profile.js?v=1794010719"></script>
 <!-- KAT-FEEDBACK1: the modal (long-press anywhere, or the buttons above). Served from

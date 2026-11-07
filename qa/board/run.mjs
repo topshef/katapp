@@ -1208,7 +1208,7 @@ console.log('FELT-NUMBER1: the account number set into the felt — upright 2×4
   const ring = await page.evaluate(() => document.querySelectorAll('.ring-lockarc[data-account-id], .ring-wedge[data-account-id]').length ? new Set([...document.querySelectorAll('[data-account-id]')].filter(e => e.closest('svg')).map(e => e.dataset.accountId)).size : Object.keys(state.accounts).length)
   const spoke = await page.evaluate(() => document.querySelectorAll('text.ring-etchlabel:not(.ring-etchsub):not(.ring-etchlock)').length)
   ok(a.length >= 4 && a.length + spoke === ring, 'on a phone, by default, every account on the ring has its number on the felt (or, where no readable block fits, the spoke id)', JSON.stringify({ felt: a.length, spoke, ring }))
-  ok(a.every(f => f.cls.includes('ring-feltnum--clear')), 'the phone default is "clear"', JSON.stringify(a.map(f => f.cls)))
+  ok(a.every(f => f.cls.includes('ring-feltnum--subtle')), 'FELT-DEFAULT2: the default is "faint" (subtle)', JSON.stringify(a.map(f => f.cls)))
   const ada = a.find(f => f.acct === '0.0.2002')
   ok(ada && ada.rows.join('/') === '0000/2002' && ada.pads === 4, '0.0.2002 reads 0000 / 2002, its four padding zeros marked softer', JSON.stringify(ada))
   ok(a.every(f => f.rows.length === 2 && f.rows.every(r => r.length === 4) && f.fs >= 16), 'every block is two rows of four digits, at 16px or more', JSON.stringify(a.map(f => [f.acct, f.rows, f.fs])))
@@ -1267,11 +1267,20 @@ console.log('FELT-NUMBER1: the account number set into the felt — upright 2×4
     await page.close()
   }
   {
-    // desktop: the etched id is ~2× bigger there, so the felt number is opt-in
+    // FELT-DEFAULT2 (owner 2026-11-07): faint on the felt is the default on a desktop too (it
+    // used to keep the spoke id there)
     const page = await browser.newPage({ viewport: { width: 1280, height: 800 } })
     await page.goto(`${BASE}/board.html?demo=1&skin=ring16`, { waitUntil: 'networkidle' }); await page.waitForTimeout(800)
-    const r = await page.evaluate(() => ({ felt: document.querySelectorAll('.ring-feltnum').length, select: document.getElementById('boardPrefFeltNumber')?.value }))
-    ok(r.felt === 0 && r.select === 'off', 'on a desktop the default stays the spoke id', JSON.stringify(r))
+    const r = await page.evaluate(() => ({ felt: document.querySelectorAll('.ring-feltnum--subtle').length, select: document.getElementById('boardPrefFeltNumber')?.value }))
+    ok(r.felt >= 4 && r.select === 'subtle', 'on a desktop the default is faint on the felt too', JSON.stringify(r))
+    // FELT-PLACE2: once the chips have settled, the numbers sit mostly clear of each account's own chips
+    await page.waitForTimeout(2500)
+    const cover = await page.evaluate(() => [...document.querySelectorAll('.ring-feltnum')].map(g => {
+      const b = g.getBoundingClientRect(), acct = g.dataset.feltAcct; let a = 0
+      for (const [k, body] of _boardSimBodies) { if (!k.includes(':' + acct + '|')) continue
+        const c = body.el.getBoundingClientRect(), x = Math.min(b.right, c.right) - Math.max(b.left, c.left), y = Math.min(b.bottom, c.bottom) - Math.max(b.top, c.top); if (x > 0 && y > 0) a += x * y }
+      return Math.round(100 * a / (b.width * b.height)) }))
+    ok(cover.length >= 4 && cover.every(c => c <= 25) && cover.reduce((t, c) => t + c, 0) / cover.length <= 12, 'FELT-PLACE2: each number is at most a quarter under its own chips, ~a tenth on average', JSON.stringify(cover))
     await page.close()
   }
 }
@@ -1466,6 +1475,163 @@ console.log('SIGN-PICK1/WHY2/TOASTCLEAR1: the payer is picked the instant the de
   await page.evaluate(() => { window.boardDetectSigning = window.__realDetect; boardSignStatus = null; render() })
   ok(!errs.length, 'no page errors', JSON.stringify(errs))
   await page.close()
+}
+
+// ── ASSET-AUTO1 (owner 2026-11-07): show all · none · AUTO — what moved in the last 14 days, six at most ──
+console.log('ASSET-AUTO1: auto = the assets that moved in the last 14 days (six most active), worked out in this browser; adding an account starts from last time, else auto')
+{
+  const { page, errs } = await open('')
+  // a stand-in mirror node: 0.0.1001 and 0.0.7777 each have a fortnight of activity
+  const T = s => `${Math.floor(Date.now() / 1000) - s}.000000000`
+  const mirrorTx = acct => [
+    ...[1, 2, 3].map(i => ({ transaction_id: `0.0.9-${i}`, consensus_timestamp: T(i * 3600), charged_tx_fee: 10, transfers: [], token_transfers: [{ token_id: '0.0.555', account: acct, amount: -5 }, { token_id: '0.0.555', account: '0.0.9', amount: 5 }] })),
+    { transaction_id: '0.0.9-4', consensus_timestamp: T(7200), charged_tx_fee: 10, transfers: [], token_transfers: [], nft_transfers: [{ token_id: '0.0.789', serial_number: 12, sender_account_id: '0.0.9', receiver_account_id: acct }] },
+    { transaction_id: '0.0.9-5', consensus_timestamp: T(9000), charged_tx_fee: 10, transfers: [{ account: acct, amount: 250000000 }, { account: '0.0.9', amount: -250000000 }], token_transfers: [] },
+    // the account only PAYING a fee, and only COLLECTING a staking reward: not movement
+    { transaction_id: `${acct}-6`, consensus_timestamp: T(100), charged_tx_fee: 80000, transfers: [{ account: acct, amount: -80000 }, { account: '0.0.3', amount: 80000 }], token_transfers: [{ token_id: '0.0.456', account: acct, amount: 0 }] },
+    { transaction_id: '0.0.9-7', consensus_timestamp: T(200), charged_tx_fee: 10, transfers: [{ account: acct, amount: 1234 }, { account: '0.0.800', amount: -1234 }], staking_reward_transfers: [{ account: acct, amount: 1234 }], token_transfers: [] },
+  ]
+  await page.route('**/testnet.mirrornode.hedera.com/api/v1/transactions?**', r => {
+    const acct = new URL(r.request().url()).searchParams.get('account.id')
+    return r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ transactions: mirrorTx(acct), links: { next: null } }) })
+  })
+  const held = { HBAR: 500000000, '0.0.456': 10, '0.0.555': 30, '0.0.789#12': 1, '0.0.901': 1, '0.0.902': 1, '0.0.903': 1, '0.0.904': 1, '0.0.905': 1 }
+  await page.route('**/hapi.php?action=assets', r => r.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, assets: held }) }))
+
+  // 1. the arithmetic
+  const u = await page.evaluate(() => {
+    const A = window.katomiaAssetAuto
+    const m = tx => [...A.moved(tx, '0.0.1')].sort().join()
+    const many = { n: { a: 9, b: 8, c: 7, d: 6, e: 5, f: 4, g: 3, h: 2 }, last: {} }
+    return {
+      fee: m({ transaction_id: '0.0.1-1', charged_tx_fee: 50, transfers: [{ account: '0.0.1', amount: -50 }] }),
+      stake: m({ transaction_id: '0.0.2-1', charged_tx_fee: 5, transfers: [{ account: '0.0.1', amount: 7 }], staking_reward_transfers: [{ account: '0.0.1', amount: 7 }] }),
+      real: m({ transaction_id: '0.0.1-1', charged_tx_fee: 50, transfers: [{ account: '0.0.1', amount: -1050 }], token_transfers: [{ token_id: '0.0.5', account: '0.0.1', amount: 3 }], nft_transfers: [{ token_id: '0.0.6', serial_number: 2, sender_account_id: '0.0.1', receiver_account_id: '0.0.2' }] }),
+      cap: A.pick(many, ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h']).join(),
+      heldOnly: A.pick(many, ['h', 'b', 'zz']).join(),
+      none: A.pick({ n: {} }, ['HBAR', '0.0.5']).join(),
+    }
+  })
+  ok(u.fee === '' && u.stake === '' && u.real === '0.0.5,0.0.6#2,HBAR', 'movement = tokens and NFT serials in or out, and HBAR beyond the fee and staking rewards', JSON.stringify(u))
+  ok(u.cap === 'a,b,c,d,e,f' && u.heldOnly === 'b,h' && u.none === 'HBAR', 'auto = held assets, most active first, six at most; nothing moved → HBAR', JSON.stringify(u))
+
+  // 2. your own account's modal, on a real network: show all · none · auto
+  const calls = await page.evaluate(async () => {
+    gameMeta.network = 'testnet'
+    const me = getAccounts().find(a => isMyAccount(a) && a.id.endsWith('0.0.1001'))
+    window.__qa = { add: [], rm: [] }
+    window.addAssetsToTable = (id, ids) => window.__qa.add.push(...ids)
+    window.removeAssetFromTable = (id, aid) => window.__qa.rm.push(aid)
+    boardPlayerModal(me.playerId, me.id)
+    await new Promise(r => setTimeout(r, 600))
+    const btns = [...document.querySelectorAll('#boardPlayerModal .board-playercard-visbtns button')].map(b => b.textContent)
+    const auto = [...document.querySelectorAll('#boardPlayerModal .board-playercard-visbtns button')].find(b => b.textContent === 'auto')
+    auto?.click()
+    await new Promise(r => setTimeout(r, 1500))
+    const shown = [...document.querySelectorAll('#boardPlayerModal .board-playercard-asset')].filter(r => !r.classList.contains('board-playercard-asset--hidden')).map(r => r.dataset.assetId).sort()
+    const onTable = Object.keys(me.assets).sort()
+    document.getElementById('boardPlayerModal')?.remove()
+    return { btns, add: window.__qa.add.sort(), rm: window.__qa.rm.sort(), shown, onTable, cached: !!katomiaAssetAuto.cached('testnet', '0.0.1001') }
+  })
+  ok(calls.btns.join('|') === 'show all|none|auto', 'your account\'s modal says "show all · none · auto"', JSON.stringify(calls.btns))
+  ok(calls.shown.join() === '0.0.555,0.0.789#12,HBAR' && calls.cached, 'auto shows exactly what moved (0.0.555 ×3, the NFT, HBAR) and caches the read', JSON.stringify(calls))
+  ok(calls.add.every(id => ['0.0.555', '0.0.789#12', 'HBAR'].includes(id)) && calls.rm.every(id => !['0.0.555', '0.0.789#12', 'HBAR'].includes(id)) && calls.rm.length >= 1,
+    'it adds what is missing from that set and takes the rest off the table', JSON.stringify(calls))
+
+  // 3. adding an account: first time → auto; again → as last time
+  const add1 = await page.evaluate(async () => {
+    openAddAccountModal(); await chooseAddAcct('0.0.7777', 'typed')
+    return { sel: [...addAcctSel].sort(), how: document.getElementById('addAcctSelHow')?.textContent || '', autoLink: !document.getElementById('addAcctSelAutoWrap')?.hidden, label: document.getElementById('addAcctJoinLabel')?.textContent }
+  })
+  ok(add1.sel.join() === '0.0.555,0.0.789#12,HBAR' && /^Auto/.test(add1.how) && add1.autoLink && /3 assets/.test(add1.label), 'a first add of 0.0.7777 starts from auto (3 of 9), and says so', JSON.stringify(add1))
+  const add2 = await page.evaluate(async () => {
+    closeAddAccountModal()
+    katomiaAssetAuto.remember('testnet', '0.0.7777', ['0.0.901', 'HBAR'])
+    openAddAccountModal(); await chooseAddAcct('0.0.7777', 'typed')
+    const a = { sel: [...addAcctSel].sort(), how: document.getElementById('addAcctSelHow')?.textContent || '' }
+    document.getElementById('addAcctSelAll').click()
+    const all = addAcctSel.size
+    await addAcctSelectAuto()
+    const b = [...addAcctSel].sort()
+    closeAddAccountModal()
+    return { ...a, all, auto: b }
+  })
+  ok(add2.sel.join() === '0.0.901,HBAR' && /last time/.test(add2.how), 'adding it again starts from what it showed last time', JSON.stringify(add2))
+  ok(add2.all === 9 && add2.auto.join() === '0.0.555,0.0.789#12,HBAR', 'show all, then auto, on the add screen too', JSON.stringify(add2))
+  // 4. the board remembers what your accounts show, as it renders
+  const mem = await page.evaluate(() => { gameMeta.network = 'playnet'; render(); const me = getAccounts().find(a => isMyAccount(a)); const acct = me.label || me.id.split(':')[1]; return { got: katomiaAssetAuto.recall('playnet', acct), want: Object.keys(me.assets).sort() } })
+  ok(JSON.stringify(mem.got) === JSON.stringify(mem.want), 'the board remembers what each of your accounts shows', JSON.stringify(mem))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
+// ── TOAST-LOOK1 + HUB-COUNTFIT1 + CAROUSEL-GLASS1 + MENU-GROUPIDLE1 (owner 2026-11-07, UX pass) ──
+console.log('UX pass: toasts, the hub countdown, the carousel\'s glass bars, the menu folding after a while')
+{
+  const { page, errs } = await open('')
+  const t = await page.evaluate(async () => {
+    document.body.dataset.kchatMode = 'bubbles'; boardChatMode = 'bubbles'; window.__katomiaNetwork = 'testnet'   // a toast with its HashScan link
+    boardShowResult('0.0.7428530@1794061350.316000000', true, 'stale', 'socket')
+    notify('✍ Signed as 0.0.1', 'success', { key: 'qa-s' })
+    await new Promise(r => setTimeout(r, 200))
+    const n = [...document.querySelectorAll('#notifications .notice')].map(n => ({ icon: n.querySelector('.notice-icon')?.textContent, msg: n.querySelector('.notice-msg')?.textContent, link: n.querySelector('.notice-link')?.textContent || null,
+      linkTop: n.querySelector('.notice-link')?.getBoundingClientRect().top, msgTop: n.querySelector('.notice-msg')?.getBoundingClientRect().top, linkLines: (() => { const l = n.querySelector('.notice-link'); return l ? Math.round(l.getBoundingClientRect().height / parseFloat(getComputedStyle(l).lineHeight || 16)) : 0 })(),
+      close: !!n.querySelector('button.notice-close') }))
+    return n
+  })
+  const ok1 = t.find(n => /Transaction successful/.test(n.msg || ''))
+  ok(ok1 && ok1.icon === '✅' && ok1.msg === 'Transaction successful' && / ↗$/.test(ok1.link || '') && ok1.linkTop > ok1.msgTop && ok1.close, 'success: one ✅, no 🟩 or ⚡, the txid and ↗ together on the second line, a real close button', JSON.stringify(ok1))
+  const s1 = t.find(n => /Signed as/.test(n.msg || ''))
+  ok(s1 && s1.icon === '✍' && s1.msg === 'Signed as 0.0.1', 'a message with its own emoji uses it as the icon (no "✅ ✍")', JSON.stringify(s1))
+  // the hub countdown is a disc inside the hub, centred
+  const h = await page.evaluate(async () => {
+    const m = getAccounts().filter(a => isMyAccount(a)).map(a => a.id.split(':')[1])
+    window.__rd = boardDetectSigning
+    window.boardDetectSigning = () => ({ tx: { txid: `${m[0]}@1794061350.316000000` }, legs: { [m[0]]: { recv: [], send: [] } }, status: 'pending', expiry: Date.now() + 30000 })
+    render(); await new Promise(r => setTimeout(r, 400))
+    const hub = document.querySelector('.ring-hub').getBoundingClientRect(), c = document.querySelector('.ring-hub > .ring-hub-count').getBoundingClientRect()
+    window.boardDetectSigning = window.__rd; render()
+    return { dx: Math.abs((c.left + c.width / 2) - (hub.left + hub.width / 2)), dy: Math.abs((c.top + c.height / 2) - (hub.top + hub.height / 2)), inside: c.width <= hub.width - 6 && c.height <= hub.height - 6, round: Math.abs(c.width - c.height) < 1 }
+  })
+  ok(h.dx < 1.5 && h.dy < 1.5 && h.inside && h.round, 'the signing countdown is a disc centred inside the hub, clear of its rim', JSON.stringify(h))
+  await page.close()
+  // carousel: the ‹ › bars lie over the track as glass
+  const c = await open('skin=carousel')
+  const g = await c.page.evaluate(() => {
+    const row = document.querySelector('.carousel-row'), tr = row.querySelector('.carousel-track').getBoundingClientRect(), a = row.querySelector('.carousel-arrow--prev'), ar = a.getBoundingClientRect(), cs = getComputedStyle(a)
+    return { trackFull: Math.abs(tr.width - row.getBoundingClientRect().width) < 1, over: ar.left <= tr.left + 1 && ar.right > tr.left, glass: /blur/.test(cs.backdropFilter || cs.webkitBackdropFilter || ''), abs: cs.position === 'absolute' }
+  })
+  ok(g.trackFull && g.over && g.glass && g.abs, 'carousel: the track runs the full width and the ‹ › bars are frosted glass over its edges', JSON.stringify(g))
+  ok(!c.errs.length, 'no page errors', JSON.stringify(c.errs))
+  await c.page.close()
+  // the menu: an open group stays open during a run of changes, folds after a while away or on another page
+  const m = await open('')
+  const fold = await m.page.evaluate(async () => {
+    const g = document.querySelector('.app-menu-group[data-menu-group]'), name = g.dataset.menuGroup
+    localStorage.setItem('katomiaMenuGroup:' + name, '1')
+    localStorage.setItem('katomiaMenuUsed', JSON.stringify({ at: Date.now(), path: location.pathname }))
+    return name
+  })
+  await m.page.reload({ waitUntil: 'networkidle' })
+  const st = () => m.page.evaluate(n => document.querySelector(`.app-menu-group[data-menu-group="${n}"]`).classList.contains('is-open'), fold)
+  const inRun = await st()
+  await m.page.evaluate(() => localStorage.setItem('katomiaMenuUsed', JSON.stringify({ at: Date.now() - 5 * 60 * 1000, path: location.pathname })))
+  await m.page.reload({ waitUntil: 'networkidle' })
+  const stale = await st()
+  await m.page.evaluate(n => { localStorage.setItem('katomiaMenuGroup:' + n, '1'); localStorage.setItem('katomiaMenuUsed', JSON.stringify({ at: Date.now(), path: '/board/elsewhere' })) }, fold)
+  await m.page.reload({ waitUntil: 'networkidle' })
+  const other = await st()
+  // open now, then let it go idle: the next ☰ opens folded
+  const idle = await m.page.evaluate(n => {
+    const g = document.querySelector(`.app-menu-group[data-menu-group="${n}"]`); g.querySelector(':scope > .app-menu-grouphead').click()
+    const opened = g.classList.contains('is-open')
+    localStorage.setItem('katomiaMenuUsed', JSON.stringify({ at: Date.now() - 3 * 60 * 1000, path: location.pathname }))
+    document.getElementById('appMenuBtn').click()
+    return { opened, after: g.classList.contains('is-open') }
+  }, fold)
+  ok(inRun && !stale && !other && idle.opened && !idle.after, 'menu: a group left open comes back open during a run of changes; after 2 minutes away or on another page it is folded', JSON.stringify({ inRun, stale, other, idle }))
+  ok(!m.errs.length, 'no page errors', JSON.stringify(m.errs))
+  await m.page.close()
 }
 
 // ── WC-ANDROIDLINK3 (owner 2026-11-07): HashPack's own link for each request's redirect, and the repair ──

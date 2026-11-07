@@ -183,6 +183,7 @@ require_once __DIR__ . '/kasset.php';
      instead of the prompt() stopgap. -->
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
+<script src="<?= kasset('katomia-assetauto.js') ?>"></script>   <!-- ASSET-AUTO1: show all · none · auto -->
 <script src="<?= kasset('katomia-addaccount.js') ?>"></script>
 
 <script>

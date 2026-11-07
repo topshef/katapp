@@ -7,8 +7,8 @@
        ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
        fade-in before first paint). -->
   <script src="kfade.js?v=1793403648"></script>
-  <link rel="stylesheet" href="katomia.css?v=1793403648" />
-<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1793992212" />
+  <link rel="stylesheet" href="katomia.css?v=1794075578" />
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794075795" />
   <title>katomia — board</title>
 </head>
 
@@ -648,6 +648,7 @@ window.katomiaNet = (() => {
     // No timing guards remain anywhere on this path (user's instruction): dead
     // taps are prevented at the source by touch-action:none on ✕ and ☰.
     if(menu.classList.contains("hidden")){
+      window.katomiaMenu.foldIfIdle?.()   // MENU-GROUPIDLE1: away a while → it opens folded
       window.katomiaNet?.paint()   // MENU-NET1: nerd mode may have changed since
       if(document.getElementById("boardSettingsPanel")) syncView()
     }
@@ -671,13 +672,29 @@ window.katomiaNet = (() => {
     if(remember) try { localStorage.setItem(GROUP_KEY + g.dataset.menuGroup, open ? "1" : "0") } catch {}
     if(open) document.dispatchEvent(new CustomEvent("katomia:menugroup", { detail: { group: g.dataset.menuGroup } }))
   }
+  // MENU-GROUPIDLE1 (owner 2026-11-07: "if you haven't been to the menu for a while … or you've
+  // jumped from home and you're on a new game … collapse it again. The only reason we'd want to
+  // leave it open is if you're … changing quite a few things in one go"). An open group is
+  // remembered only for a RUN of changes: any tap or change inside the menu restarts a 2-minute
+  // clock, tied to this page. Past it — or on another page (a new circle, home) — the menu
+  // opens with every group folded.
+  const USE_KEY = "katomiaMenuUsed", IDLE_MS = 2 * 60 * 1000
+  const markUse = () => { try { localStorage.setItem(USE_KEY, JSON.stringify({ at: Date.now(), path: location.pathname })) } catch {} }
+  const inRun = () => {
+    try { const u = JSON.parse(localStorage.getItem(USE_KEY) || "null"); return !!u && Date.now() - u.at < IDLE_MS && u.path === location.pathname }
+    catch { return false }
+  }
+  const foldAll = () => menu.querySelectorAll(".app-menu-group.is-open[data-menu-group]").forEach(g => setGroup(g, false, true))
+  const runOnLoad = inRun()
   menu.querySelectorAll(".app-menu-group[data-menu-group]").forEach(g => {
     let was = null
     try { was = localStorage.getItem(GROUP_KEY + g.dataset.menuGroup) } catch {}
-    if(was === "1") setGroup(g, true, false)
+    if(was === "1" && runOnLoad) setGroup(g, true, false)
     g.querySelector(":scope > .app-menu-grouphead")?.addEventListener("click", () =>
       setGroup(g, !g.classList.contains("is-open"), true))
   })
+  ;["click", "change", "input"].forEach(t => menu.addEventListener(t, markUse, true))
+  window.katomiaMenu.foldIfIdle = () => { if(!inRun()) foldAll() }
 
   // Diagnostic tripwire (2026-07-14, after board.php shipped without
   // katomia-profile.js and Profile silently no-op'd — same failure shape as
@@ -1288,8 +1305,10 @@ window.katomiaNet = (() => {
 			     the list rather than into the label, so the label stays a label. -->
 			<div class="addacct-assets-head">
 				<label>What others will see<br>in your store</label>
-				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
+				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button><span id="addAcctSelAutoWrap" hidden> · <button id="addAcctSelAuto" type="button" class="addacct-link" title="What moved in the last 14 days — the 6 most active at most (worked out in this browser)">auto</button></span></span>
 			</div>
+			<!-- ASSET-AUTO1: which choice the list starts from — as last time, or auto -->
+			<p id="addAcctSelHow" class="subtle addacct-hint addacct-selhow" hidden></p>
 			<div id="addAcctAssets" class="addacct-assets"></div>
 			<p class="subtle addacct-hint addacct-later">You can change what's visible any time — tap your account on the board.</p>
 			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">You → Reputation</button> to carry reputation.</p>
@@ -1360,7 +1379,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "533ef7d"
+  window.KFLOW_COMMIT = "50d8f13"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1402,7 +1421,7 @@ window.katomiaNet = (() => {
 <script src="katomia-core.js?v=1794010719"></script>
 <script src="katomia-localdb.js?v=1793403648"></script>
 <script src="kemoji.js?v=1793403648"></script>
-<script src="katomia-helpers.js?v=1794061747"></script>
+<script src="katomia-helpers.js?v=1794075607"></script>
 <script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="katomia-enrich.js?v=1793992212"></script>
 <script src="katomia-network.js?v=1794010898"></script>
@@ -1418,7 +1437,7 @@ window.katomiaNet = (() => {
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->
 <script src="katomia-txstatus.js?v=1793403648"></script>
-<script src="katomia-board.js?v=1794062140"></script>
+<script src="katomia-board.js?v=1794076339"></script>
 <script src="katomia-carousel.js?v=1793403648"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
 <script src="katomia-tickets.js?v=1793403648"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 
@@ -1441,7 +1460,8 @@ window.katomiaNet = (() => {
      instead of the prompt() stopgap. -->
 <script src="katomia-profile.js?v=1794010719"></script>
 <script src="katomia-auth.js?v=1793403648"></script>
-<script src="katomia-addaccount.js?v=1793403648"></script>
+<script src="katomia-assetauto.js?v=1794076301"></script>   <!-- ASSET-AUTO1: show all · none · auto -->
+<script src="katomia-addaccount.js?v=1794076374"></script>
 
 <script>
 window.addEventListener("load", () => {

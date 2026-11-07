@@ -186,8 +186,15 @@ async function chooseAddAcct(raw, src){
     const data = await res.json()
     if(!data.ok) throw new Error(data.error || "lookup failed")
     addAcctList = Object.keys(data.assets || {})
-    addAcctSel = new Set(addAcctList)   // everything ticked by default
+    addAcctSel = new Set(addAcctList)   // everything ticked — the fallback when nothing better is known
+    // ASSET-AUTO1 (owner 2026-11-07: "that auto feature … we should apply when adding a new account
+    // as well … so in general, you don't try and add like tons and tons of assets"; and on adding
+    // the same account again: "the selection should just be whatever you had last time"). The
+    // list starts from what this account showed last time; failing that, from auto; failing
+    // both (no activity readable within a few seconds), everything, as before.
+    const how = await addAcctDefaultSel(net, label)
     renderAddAcctAssets(data.assets || {})
+    addAcctShowHow(how)
     window.kflow?.("acct:add:assets", addAcctList.length ? "ok" : "empty", { count: addAcctList.length })
   } catch(e) {
     window.kflow?.("acct:add:assets", "fail", { error: String(e?.message || e) })
@@ -243,6 +250,7 @@ function renderAddAcctAssets(assets){
       on ? addAcctSel.add(id) : addAcctSel.delete(id)
       row.classList.toggle("addacct-row--off", !on)
       updateAddAcctJoinCount()
+      addAcctShowHow(null)   // ASSET-AUTO1: a hand-made choice is neither "auto" nor "last time"
     }))
 
     const thumb = (typeof getAssetMeta === "function" && typeof getAssetThumb === "function")
@@ -319,11 +327,63 @@ function updateAddAcctJoinCount(){
 
 function addAcctSelectAll(on){
   addAcctSel = on ? new Set(addAcctList) : new Set()
+  addAcctPaintSel()
+  addAcctShowHow(null)
+}
+function addAcctPaintSel(){
   document.querySelectorAll("#addAcctAssets .addacct-row").forEach(r => {
+    const on = addAcctSel.has(r.dataset.assetId)
     r.classList.toggle("addacct-row--off", !on)
     r.querySelector(".kvis")?._kvisPaint?.(on)
   })
   updateAddAcctJoinCount()
+}
+
+// ── ASSET-AUTO1 ─────────────────────────────────────────────────────────────────────
+const addAcctReal = net => net === "testnet" || net === "mainnet"
+async function addAcctAutoSel(net, label, waitMs){
+  const A = window.katomiaAssetAuto
+  if(!A || !addAcctReal(net)) return null
+  const e = A.cached(net, label)
+  if(e && !e.stale) return A.pick(e, addAcctList)
+  const got = await Promise.race([A.auto(net, label, addAcctList), new Promise(r => setTimeout(() => r(null), waitMs))])
+  return got || (e ? A.pick(e, addAcctList) : null)
+}
+async function addAcctDefaultSel(net, label){
+  const A = window.katomiaAssetAuto
+  document.getElementById("addAcctSelAutoWrap")?.toggleAttribute("hidden", !(A && addAcctReal(net)))
+  if(!A || !addAcctList.length) return null
+  const last = A.recall(net, label)
+  if(last){
+    const keep = last.filter(id => addAcctList.includes(id))
+    if(keep.length || !last.length){ addAcctSel = new Set(keep); return "last" }
+  }
+  const box = document.getElementById("addAcctAssets")
+  if(box && addAcctReal(net)) box.textContent = "Looking at what moved recently…"
+  const want = await addAcctAutoSel(net, label, 5000)
+  if(want){ addAcctSel = new Set(want); return "auto" }
+  return null
+}
+function addAcctShowHow(how){
+  const el = document.getElementById("addAcctSelHow")
+  if(!el) return
+  const A = window.katomiaAssetAuto
+  el.textContent = how === "last" ? "Showing what this account showed last time."
+    : how === "auto" ? `Auto: what moved in the last ${A?.DAYS || 14} days — ${addAcctSel.size} of ${addAcctList.length}.`
+    : ""
+  el.hidden = !el.textContent
+}
+async function addAcctSelectAuto(){
+  const net = addAcctNet()
+  const btn = document.getElementById("addAcctSelAuto")
+  if(btn) btn.textContent = "auto…"
+  const want = await addAcctAutoSel(net, addAcctLabel, 8000)
+  if(btn) btn.textContent = "auto"
+  if(!want){ addAcctStatus("Couldn't read this account's recent activity — try again in a moment", true); return }
+  addAcctStatus("")
+  addAcctSel = new Set(want)
+  addAcctPaintSel()
+  addAcctShowHow("auto")
 }
 
 // ADDACCT-ROBUST1 (user 2026-08-05, "Adding… stuck / failure toast buried"): while a
@@ -410,6 +470,7 @@ document.addEventListener("click", e => {
       break
     case "addAcctSelAll": addAcctSelectAll(true); break
     case "addAcctSelNone": addAcctSelectAll(false); break
+    case "addAcctSelAuto": addAcctSelectAuto(); break
     case "addAcctManualUse": chooseAddAcct(document.getElementById("addAcctManual").value, "typed"); break
     case "addAcctJoinAll": addAcctJoinGame(true); break
     case "addAcctJoin": addAcctJoinGame(false); break

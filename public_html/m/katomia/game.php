@@ -430,6 +430,7 @@
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="<?= kasset('katomia-profile.js') ?>"></script>
 <script src="<?= kasset('katomia-auth.js') ?>"></script>
+<script src="<?= kasset('katomia-assetauto.js') ?>"></script>   <!-- ASSET-AUTO1: show all · none · auto -->
 <script src="<?= kasset('katomia-addaccount.js') ?>"></script>
 
 <!-- KAT-FEEDBACK1 dogfooding: long-press anywhere on the game page (2s) opens

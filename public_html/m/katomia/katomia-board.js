@@ -438,7 +438,9 @@ let _feltUrl = (new URLSearchParams(location.search).get("felt") || "").toLowerC
 if(!FELT_STYLES.includes(_feltUrl)) _feltUrl = null
 // FELT-NUMBER1: the saved choice (null = device default); boardFeltStyle() is what renders
 let boardFeltPref = FELT_STYLES.includes(_bp.feltNumber) ? _bp.feltNumber : null
-const boardFeltStyle = () => _feltUrl || boardFeltPref || (boardSmallScreen() ? "clear" : "off")
+// FELT-DEFAULT2 (owner 2026-11-07: "let's make the default on the felt faint"): faint is the
+// default on every screen (was clear on phones, along the spoke on desktop)
+const boardFeltStyle = () => _feltUrl || boardFeltPref || "subtle"
 // boardPrefsOpen (⚙ popover open/closed) retired BOARD-HEADERINT1 — Preferences
 // now lives in profile-modal.php, opened via the normal Profile menu item.
 // 🧪 chip layout (BOARD-LAYOUT1, user 2026-07-14): "shelves" = deterministic
@@ -893,7 +895,12 @@ function boardShowResult(txid, ok, tier, source){
   // warning and error toasts — the witness "will NOT count", the wallet-mismatch, the watchdog.
   // The message history keeps them. A failure keeps them: there they explain why.
   if(ok){ try { const n = window.katomiaClearNotices?.({ txid, types: ["warning", "error"] }); if(n) boardDiag("board:toast:cleared", { txid, n }) } catch {} }
-  const prov = BOARD_PROVENANCE_GLYPH[source] ? ` ${BOARD_PROVENANCE_GLYPH[source]}` : ""
+  // ASSET-AUTO1: a settled deal moved your assets — the next look re-reads your activity
+  if(ok){ try { window.katomiaAssetAuto?.staleMine(gameMeta?.network || window.__katomiaNetwork, state) } catch {} }
+  // TOAST-LOOK1 (owner 2026-11-07: "I'm not sure we need the lightning bolt … get rid of
+  // that"): the provenance glyph no longer rides in the verdict text. Where a verdict came from
+  // stays in the diag line above (board:result:shown → source).
+  const prov = ""
   // read by the wipe branch below (~4442) so the spotlight lift can match
   // whichever celebration is actually playing — confetti (~4.25s) on
   // success vs the wiper sweep (~1.5s) on failure, instead of always using
@@ -939,7 +946,7 @@ function boardShowResult(txid, ok, tier, source){
     const net = window.__katomiaNetwork
     const link = (ok && txid && (net === "mainnet" || net === "testnet"))
       ? { href: `https://hashscan.io/${net}/transaction/${encodeURIComponent(txid)}`,
-          text: `${txid} ↗` }
+          text: `${txid}\u00A0↗` }   // TOAST-LOOK1: the arrow never wraps away from the id
       : null
     // BOARD-CHATMODE1 R3 (user 2026-08-03): with the message panel on (the default),
     // the verdict lives IN THE STREAM as a Katomia system entry — the toast version
@@ -960,7 +967,8 @@ function boardShowResult(txid, ok, tier, source){
         // the one that survives a board navigation is the persisted one).
         { link: link?.href || null, linkText: ok ? txid : null, txid })
     else
-      notify(ok ? `🟩 Transaction successful${prov}` : `🟥 Transaction failed or expired${prov}${why}`,
+      // TOAST-LOOK1: one mark each — ✅ (the success type's icon) and ⌛ — not ✅ + 🟩
+      notify(ok ? `Transaction successful${prov}` : `⌛ Transaction failed or expired${prov}${why}`,
         ok ? "success" : "error",
         { timeout: 0, link, key: `txresult:${txid}`, ...(link ? {} : { detail: txid }) })
   } catch {}
@@ -1560,6 +1568,8 @@ window.addEventListener("resize", () => {
 
 async function render(){
   if(!state) return
+  // ASSET-AUTO1: remember what each of your accounts shows, and keep its activity cache warm
+  try { window.katomiaAssetAuto?.observe(state, gameMeta?.network || window.__katomiaNetwork) } catch {}
 
   // ── BOARD-DRAGREPAINT1 R2 (user 2026-08-06) ────────────────────────────────
   // "If I drag slowly on DESKTOP, the whole screen is blank until I let go, and
@@ -2430,6 +2440,10 @@ function renderRingBoard(root){
     if(boardSigning){
       const count = document.createElement("span")
       count.className = "ring-hub-count ring-hub-count--" + boardSigning.status
+      // HUB-COUNTFIT1 (owner 2026-11-07: the countdown "doesn't really fit very well in the central
+      // circle … semi-aligned left, and it's overlapping"): a disc just inside the hub's rim,
+      // centred on the hub whatever else it holds, the figures sized to the hub (rc = its radius)
+      count.style.setProperty("--hub-count-fs", Math.round(Math.max(11, Math.min(24, rc * 0.5))) + "px")
       // SIGN-TWILIGHT2: the colours are signing status, never a success predictor; dark green
       // in the last ~10s = still signed, but the network no longer accepts new signatures
       count.title = "Time left in the signing window. Green = signed; dark green in the last ~10s = still signed, but too late for new signatures to land; amber = waiting for signatures"
@@ -3164,7 +3178,19 @@ function boardSimFrame(){
     // Only a CLEAN settle sticks, exactly as before BOARD-SIMGIVEUP1.
     if(!givenUp && boardStickyChips) _boardSimBodies.forEach(b => { b.stick = true })
     if(givenUp) boardDiag("board:sim:giveup", { bodies: _boardSimBodies.size, moved: Math.round(moved * 100) / 100 })
+    boardFeltSettleCheck()
   }
+}
+
+// FELT-PLACE2: the chips have settled. A felt number placed before they had (it saw spawn
+// positions, or only the predicted blob) gets ONE more paint, which finds where the chips came
+// to rest and moves the number off them if they cover it. Only while some spot is still
+// uninformed, so a settled board never re-renders from here.
+let _boardFeltRecheck = 0
+function boardFeltSettleCheck(){
+  if(_boardFeltRecheck || boardFeltStyle() === "off") return
+  if(![..._boardFeltSpot.values()].some(v => !v.informed)) return
+  _boardFeltRecheck = setTimeout(() => { _boardFeltRecheck = 0; try { render() } catch {} }, 60)
 }
 
 // ── OVAL-TRUE WALLS (user 2026-07-16 — the zone-walls overlay's "massive
@@ -5458,6 +5484,8 @@ function boardStartCountdown(el){
     // the clock drift we can't be precise about). The definite verdict is
     // the wiper + 🟥 toast when the backend's resolve broadcast lands.
     el.textContent = left ? `${m}:${String(sec).padStart(2, "0")}` : "⌛ expired?"
+    // HUB-COUNTFIT1: the longer limbo label gets the smaller face so it stays inside the hub
+    el.classList.toggle("ring-hub-count--long", !left)
     // KATOMIA-VALIDDUR1: the pre-submit banner shows a live "opens in Ns" —
     // render() only calls boardUpdateBanner on state changes, which can be
     // sparse during a quiet wait, so this timer (already ticking every
@@ -8076,7 +8104,43 @@ function ringBindBadge(account){
 const FELT_EM = { adv: 0.632, digit: 0.70, lead: 0.98, track: 0.06 }
 const FELT_MIN_FS = 16        // smaller than this and the spoke id is the better read
 const FELT_MAX_FS = 72
-const _boardFeltSpot = new Map()   // account id → { u, t, fs }: last spot (hysteresis, like _boardEtchSide)
+const _boardFeltSpot = new Map()   // account id → { u, t, fs, informed }: last spot (hysteresis, like _boardEtchSide)
+
+// FELT-PLACE2 (owner 2026-11-07: the number "is kind of sitting in the middle sometimes, and often
+// obscured by chips … a slightly more intelligent placement"): where this account's store chips
+// are, as screen rects in board coordinates. Once the sim has placed them, their real rects;
+// before that (the first paint) the blob the sim will home them to: the wedge's middle angle,
+// ~0.4 of the way from the basket oval to the edge (boardOrganicApply's anchor, 0.38 with
+// hugRing, 0.5 without), sized from how many chips there are.
+function boardFeltObstacles(seg, g, a0, a1){
+  const id = seg.account.id, rects = []
+  const root = document.getElementById("boardRoot")?.getBoundingClientRect() || { left: 0, top: 0 }
+  for(const b of _boardSimBodies.values()){
+    // its own chips: the store, and a basket chip that strays past the oval
+    if((b.zoneKey !== id + "|store" && b.zoneKey !== id + "|basket") || !b.el || !b.el.isConnected) continue
+    const r = b.el.getBoundingClientRect()
+    if(!r.width || !r.height) continue
+    rects.push({ x0: r.left - root.left, y0: r.top - root.top, x1: r.right - root.left, y1: r.bottom - root.top })
+  }
+  // real rects; "known" (trusted for good) only once the sim is asleep — mid-settle they still move
+  if(rects.length) return { rects, known: !_boardSimRaf }
+  const n = Math.min(30, Object.keys(seg.account.assets || {}).length)
+  if(!n) return { rects, known: true }
+  const th = g.rad((a0 + a1) / 2), r0 = g.ovalR(th), r1 = g.edgeR(th), r = r0 + (r1 - r0) * 0.42
+  const R = Math.sqrt(n * 54 * 40 / (Math.PI * 0.6)) * 0.9
+  const x = g.cx + r * Math.cos(th), y = g.cy + r * Math.sin(th)
+  return { rects: [{ x0: x - R, y0: y - R, x1: x + R, y1: y + R }], known: false }
+}
+// the share of a block (centre x,y, size b) the obstacles cover, 0..1
+function boardFeltCover(x, y, b, obs){
+  const bx0 = x - b.w / 2, bx1 = x + b.w / 2, by0 = y - b.h / 2, by1 = y + b.h / 2
+  let a = 0
+  for(const o of obs.rects){
+    const w = Math.min(bx1, o.x1) - Math.max(bx0, o.x0), h = Math.min(by1, o.y1) - Math.max(by0, o.y0)
+    if(w > 0 && h > 0) a += w * h
+  }
+  return Math.min(1, a / Math.max(1, b.w * b.h))
+}
 
 // The convention. 1–8 digits → 2×4, zero-padded on the left; 9 → 3×3; 10–12 → 3×4 padded;
 // beyond that, 4 per row. The protocol allows 19 digits (int64); mainnet is at 8 (0.0.10.9M,
@@ -8172,20 +8236,30 @@ function ringFeltNumber(seg, g, NS, style, band){
   // STICKY (the _boardEtchSide lesson, user 2026-07-12: a label must not flash between two
   // spots mid-animation): keep last paint's spot unless it has lost more than ~12% of its
   // size; only then search again. Steady state costs one candidate, not seventy.
+  // FELT-PLACE2: the search weighs how much of each candidate the account's chips cover — a
+  // block a third smaller in the clear beats a bigger one under the chips — and a spot chosen
+  // before the chips were placed (first paint, predicted blob) is searched again ONCE when
+  // their real positions are known and they cover it; after that it stays put.
+  const obs = boardFeltObstacles(seg, g, a0, a1)
+  const cov = c => boardFeltCover(c.x, c.y, box(c.fs), obs)
+  const score = c => c.fs * (1 - cov(c))
   const prev = _boardFeltSpot.get(seg.account.id)
   let spot = prev ? tryAt(prev.u, prev.t) : null
-  if(!spot || spot.fs < prev.fs / 1.12 || spot.fs < FELT_MIN_FS){
-    let best = spot && spot.fs >= FELT_MIN_FS ? spot : null
-    for(const u of [0.22, 0.36, 0.5, 0.64, 0.78])
+  const reinform = !!(prev && !prev.informed && obs.known && spot && spot.fs >= FELT_MIN_FS && cov(spot) > 0.12)
+  if(!spot || spot.fs < prev.fs / 1.12 || spot.fs < FELT_MIN_FS || reinform){
+    let best = spot && spot.fs >= FELT_MIN_FS && !reinform ? spot : null, bestScore = best ? score(best) : -1
+    for(const u of [0.14, 0.22, 0.36, 0.5, 0.64, 0.78, 0.86])
       for(let t = 0.1; t <= 0.96; t += 0.07){
         const c = tryAt(u, t)
-        // bigger wins; near-ties go to the outer spot (the widest part of the wedge)
-        if(!best || c.fs > best.fs + 0.25 || (c.fs > best.fs - 0.25 && c.t > best.t)) best = c
+        if(c.fs < FELT_MIN_FS) continue
+        const sc = score(c)
+        // clearest-and-biggest wins; near-ties go to the outer spot (the widest part of the wedge)
+        if(!best || sc > bestScore + 0.25 || (sc > bestScore - 0.25 && c.t > best.t)){ best = c; bestScore = sc }
       }
     spot = best
   }
   if(!spot || spot.fs < FELT_MIN_FS){ _boardFeltSpot.delete(seg.account.id); return null }
-  _boardFeltSpot.set(seg.account.id, { u: spot.u, t: spot.t, fs: spot.fs })
+  _boardFeltSpot.set(seg.account.id, { u: spot.u, t: spot.t, fs: spot.fs, informed: obs.known || !!prev?.informed })
 
   const fs = spot.fs, b = box(fs), colour = getPlayerColour(seg.account.playerId)
   const grp = document.createElementNS(NS, "g")
@@ -9795,6 +9869,37 @@ function boardPlayerModal(playerId, focusAccountId = null){
           if(r.dataset.assetId && typeof removeAssetFromTable === "function") removeAssetFromTable(account.id, r.dataset.assetId)
         })
       })
+      // ASSET-AUTO1 (owner 2026-11-07: "show all, none, auto … I'm finding myself … hitting none,
+      // and then manually trying to pick out the common ones. Well, the common ones are the ones
+      // I've traded recently"). The assets that moved in the last 14 days, the six most active
+      // at most (katomia-assetauto.js), from this browser's cache — instant once it is warm.
+      const AA = window.katomiaAssetAuto
+      if(AA && (net === "testnet" || net === "mainnet")){
+        btns.appendChild(document.createTextNode(" · "))
+        mk("auto", `Show what moved in the last ${AA.DAYS} days — the ${AA.MAX} most active at most (worked out in this browser)`, async ev => {
+          const b = ev?.currentTarget
+          const hacA = account.label || (account.id.split(":")[1] || account.id)
+          const rows = () => [...list.querySelectorAll(".board-playercard-asset")]
+          if(b) b.textContent = "auto…"
+          const heldAll = (await list._heldIds) || []
+          const ids = [...new Set([...heldAll, ...rows().map(r => r.dataset.assetId).filter(Boolean)])]
+          const want = await AA.auto(net, hacA, ids)
+          if(b) b.textContent = "auto"
+          if(!want){ notify("Couldn't read this account's recent activity — try again in a moment", "warning", { timeout: 5000 }); return }
+          const wantSet = new Set(want)
+          const shown = rows().filter(r => !r.classList.contains("board-playercard-asset--hidden")).map(r => r.dataset.assetId)
+          const toAdd = want.filter(id => !shown.includes(id))
+          const toRemove = shown.filter(id => !wantSet.has(id))
+          rows().forEach(r => {
+            const on = wantSet.has(r.dataset.assetId)
+            r.classList.toggle("board-playercard-asset--hidden", !on)
+            r.querySelector(".kvis")?._kvisPaint?.(on)
+          })
+          boardDiag("asset:auto:apply", { account: hacA, show: want.length, add: toAdd.length, remove: toRemove.length })
+          if(toAdd.length && typeof addAssetsToTable === "function") addAssetsToTable(account.id, toAdd)
+          if(typeof removeAssetFromTable === "function") toRemove.forEach(id => removeAssetFromTable(account.id, id))
+        })
+      }
       head.appendChild(btns)
       sec.appendChild(head)
     }
@@ -9905,10 +10010,13 @@ function boardPlayerModal(playerId, focusAccountId = null){
     // out-of-play: on-chain holdings not brought to the table (async, greyed)
     const hac = account.label || (account.id.split(":")[1] || account.id)
     if((net === "testnet" || net === "mainnet") && /^0\.0\.\d+$/.test(hac)){
-      fetch((window.KBASE || "") + "/hapi.php?action=assets", {
+      const heldFetch = fetch((window.KBASE || "") + "/hapi.php?action=assets", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ network: net, account: hac })
-      }).then(r => r.json()).then(data => {
+      }).then(r => r.json())
+      // ASSET-AUTO1: "auto" needs the whole wallet, not only what is on the table
+      list._heldIds = heldFetch.then(d => d?.ok ? Object.keys(d.assets || {}) : null).catch(() => null)
+      heldFetch.then(data => {
         if(!data?.ok || !document.getElementById("boardPlayerModal")) return
         const inPlay = new Set(Object.keys(account.assets || {}))
         const out = Object.entries(data.assets || {}).filter(([id]) => !inPlay.has(id))

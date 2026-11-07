@@ -38,8 +38,10 @@
 			     the list rather than into the label, so the label stays a label. -->
 			<div class="addacct-assets-head">
 				<label>What others will see<br>in your store</label>
-				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button></span>
+				<span class="addacct-selbtns"><button id="addAcctSelAll" type="button" class="addacct-link">show all</button> · <button id="addAcctSelNone" type="button" class="addacct-link">none</button><span id="addAcctSelAutoWrap" hidden> · <button id="addAcctSelAuto" type="button" class="addacct-link" title="What moved in the last 14 days — the 6 most active at most (worked out in this browser)">auto</button></span></span>
 			</div>
+			<!-- ASSET-AUTO1: which choice the list starts from — as last time, or auto -->
+			<p id="addAcctSelHow" class="subtle addacct-hint addacct-selhow" hidden></p>
 			<div id="addAcctAssets" class="addacct-assets"></div>
 			<p class="subtle addacct-hint addacct-later">You can change what's visible any time — tap your account on the board.</p>
 			<p id="addAcctHint" class="subtle addacct-hint hidden">🔷 Not bound yet — you can join anyway; bind this account in <button id="addAcctProfileLink" type="button" class="addacct-link">You → Reputation</button> to carry reputation.</p>

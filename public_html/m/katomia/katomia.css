@@ -792,6 +792,114 @@
   to{ transform:translateY(0); opacity:1 }
 }
 
+/* TOAST-LOOK1 (owner 2026-11-07: "modernize the entire toast arrangement"). Scoped to the toast
+   container: the kpool widget has its own .notice. A card on frosted glass with a thin accent
+   stripe in the type's colour; [icon] [message, then the detail or link on line two] [×], left
+   aligned, the × a real 28px tap target beside the first line instead of pinned in a corner. */
+#notifications .notice{
+  --notice-accent:#5b7083;
+  --notice-tint:rgba(255,255,255,.94);
+  position:relative;
+  display:flex;
+  flex-wrap:nowrap;
+  align-items:flex-start;
+  justify-content:flex-start;
+  gap:10px;
+  padding:10px 6px 10px 14px;
+  border-radius:12px;
+  overflow:hidden;
+  text-align:left;
+  font:500 14px/1.35 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  color:#1d2733;
+  background:var(--notice-tint);
+  -webkit-backdrop-filter:blur(12px) saturate(150%);
+  backdrop-filter:blur(12px) saturate(150%);
+  border:1px solid rgba(15,23,42,.08);
+  box-shadow:0 8px 24px rgba(15,23,42,.18), 0 1px 2px rgba(15,23,42,.10);
+  animation:noticeIn .22s cubic-bezier(.2,.8,.2,1);
+  transition:opacity .35s ease, transform .35s ease;
+}
+#notifications .notice::before{
+  content:"";
+  position:absolute;
+  left:0; top:0; bottom:0;
+  width:4px;
+  background:var(--notice-accent);
+}
+#notifications .notice.fade-out{ opacity:0; transform:translateY(-6px); }
+#notifications .notice.success{ --notice-accent:#22a35a; --notice-tint:rgba(240,251,244,.95); color:#14532d; }
+#notifications .notice.warning{ --notice-accent:#e0a100; --notice-tint:rgba(255,250,235,.96); color:#5c4300; }
+#notifications .notice.error,
+#notifications .notice.failed{ --notice-accent:#d64550; --notice-tint:rgba(254,242,243,.96); color:#7a1d26; }
+#notifications .notice.info,
+#notifications .notice.event{ --notice-accent:#3b82f6; --notice-tint:rgba(239,246,255,.95); color:#173a6b; }
+#notifications .notice.debug{ --notice-accent:#8a94a3; --notice-tint:rgba(243,244,246,.95); color:#374151; }
+
+#notifications .notice-icon{
+  flex:0 0 auto;
+  width:22px;
+  text-align:center;
+  font-size:17px;
+  line-height:19px;   /* sits on the first line of text */
+}
+#notifications .notice-body{
+  flex:1 1 auto;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  padding-top:1px;
+}
+#notifications .notice-msg{ overflow-wrap:anywhere; }
+#notifications .notice-detail,
+#notifications .notice-link{
+  font-size:12.5px;
+  font-weight:500;
+  font-variant-numeric:tabular-nums;
+  opacity:.78;
+  margin:0;
+  padding:0;
+}
+#notifications .notice-detail{ overflow-wrap:anywhere; }
+#notifications .notice-link{
+  align-self:flex-start;
+  max-width:100%;
+  color:inherit;
+  white-space:nowrap;          /* "txid ↗" stays on one line (no-break space before the arrow) */
+  overflow:hidden;
+  text-overflow:ellipsis;      /* only on a screen too narrow for a whole txid */
+  text-decoration:none;
+  border-bottom:1px solid currentColor;
+  border-bottom-color:color-mix(in srgb, currentColor 35%, transparent);
+}
+#notifications .notice-link:hover{ opacity:1; border-bottom-color:currentColor; }
+#notifications .notice-close{
+  position:static;
+  flex:0 0 auto;
+  width:28px;
+  height:28px;
+  margin:-5px 0 -5px 0;        /* centred on the first line without growing the card */
+  border:0;
+  border-radius:8px;
+  background:transparent;
+  color:inherit;
+  opacity:.5;
+  font-size:19px;
+  line-height:28px;
+  text-align:center;
+  cursor:pointer;
+}
+#notifications .notice-close:hover,
+#notifications .notice-close:focus-visible{ opacity:.9; background:rgba(15,23,42,.07); outline:none; }
+
+@keyframes noticeIn{
+  from{ transform:translateY(-10px) scale(.98); opacity:0 }
+  to{ transform:none; opacity:1 }
+}
+@media (prefers-reduced-motion: reduce){
+  #notifications .notice{ animation:none; transition:opacity .2s ease; }
+}
+
 
 
 body[data-view-mode="merged"] .name{

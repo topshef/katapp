@@ -36,7 +36,7 @@
 			const icons = {
 				info:"ℹ️",
 				warning:"⚠️",
-				error:"🤔",
+				error:"❗",   // TOAST-LOOK1: was 🤔
 				success:"✅",
 				failed:"❌"
 			}
@@ -44,7 +44,13 @@
 			const container = document.getElementById("notifications")
 			if(!container) return
 
-			const icon = icons[type] || ""
+			// TOAST-LOOK1 (owner 2026-11-07, "just give an esthetic pass to the toast messages"): a
+			// message that STARTS with its own emoji ("✍ Signed as …", "⌛ Transaction failed")
+			// uses that emoji as the icon instead of stacking the type's icon in front of it
+			// (it read "✅ ✍ Signed as …").
+			const lead = /^\s*((?:\p{Extended_Pictographic}|[\u{1F1E6}-\u{1F1FF}]{2})(?:\uFE0F|\u200D\p{Extended_Pictographic}\uFE0F?)*)\s*/u.exec(String(message))
+			const icon = lead ? lead[1] : (icons[type] || "")
+			const msg = lead ? String(message).slice(lead[0].length) : String(message)
 
 			// Coalesce: repeated fills of the SAME order ("183/5000" → "4817/5000" → …)
 			// collapse into ONE toast that updates in place, instead of stacking dozens.
@@ -52,21 +58,41 @@
 			const om = /Order #(\d+)/.exec(message)
 			const key = opts.key || (om ? `${type}:order#${om[1]}` : `${type}:${message}:${opts.detail || ""}`)
 
-			// Toast detail (user 2026-08-03): long ids (tx ids) used to be glued into the
-			// message string, where they couldn't wrap — now an inline child span that drops
-			// to its own line only when the row runs out of room (mobile: two lines).
-			const addDetail = t => {
-				if(!opts.detail) return
-				const d = document.createElement("span")
-				d.className = "notice-detail"
-				d.textContent = opts.detail
-				t.appendChild(d)
+			// TOAST-LOOK1 layout: [icon] [message, then the detail or the link on a line of their
+			// own] [×]. Detail (user 2026-08-03): long ids (tx ids) ride in their own span on the
+			// second line instead of being glued into the message.
+			const fill = (body) => {
+				body.textContent = ""
+				const m = document.createElement("span")
+				m.className = "notice-msg"
+				m.textContent = msg
+				body.appendChild(m)
+				if(opts.detail && !opts.link?.href){
+					const d = document.createElement("span")
+					d.className = "notice-detail"
+					d.textContent = opts.detail
+					body.appendChild(d)
+				}
+				// BOARD-TOASTLINK1: an optional link, {href, text}. A real element, never markup in
+				// `message` (toast text includes server-supplied ids). TOAST-LOOK1: the arrow is glued
+				// to the text with a no-break space, so "txid ↗" never wraps onto a third line.
+				if(opts.link?.href){
+					const link = document.createElement("a")
+					link.className = "notice-link"
+					link.href = opts.link.href
+					link.target = "_blank"
+					link.rel = "noopener noreferrer"
+					link.textContent = String(opts.link.text || "View").replace(/\s+([↗→])$/u, "\u00A0$1")
+					body.appendChild(link)
+				}
 			}
 
 			const dupe = [...container.children].find(n => !n.classList.contains("fade-out") && n.dataset.key === key)
 			if(dupe){
-				const t = dupe.querySelector("span")
-				if(t){ t.textContent = `${icon} ${message}`; addDetail(t) }   // show the latest state
+				const body = dupe.querySelector(".notice-body")
+				if(body) fill(body)   // show the latest state
+				const ic = dupe.querySelector(".notice-icon")
+				if(ic) ic.textContent = icon
 				clearTimeout(dupe._timer)
 				if(timeout) dupe._timer = setTimeout(()=>removeNotice(dupe), timeout)
 				if(opts.txid) dupe.dataset.txid = opts.txid
@@ -85,41 +111,35 @@
 					// belt-and-braces sweep: a caller that puts markup in the MESSAGE (as the
 					// binding notice used to) should degrade to clean prose in the stream, not
 					// print a literal tag — links belong in opts.link, which renders properly.
-					window.katomiaChat.system(stripTags(`${icon} ${message}`.trim() + (opts.detail ? ` · ${opts.detail}` : "")),
+					window.katomiaChat.system(stripTags(`${icon} ${msg}`.trim() + (opts.detail ? ` · ${opts.detail}` : "")),
 						{ link: opts.link?.href || null, linkText: opts.link?.text || null })
 			} catch {}
 
 			const el = document.createElement("div")
 			el.className = `notice ${type}`
 			el.dataset.key = key
+			el.setAttribute("role", type === "error" || type === "failed" ? "alert" : "status")
 			// SIGN-TOASTCLEAR1: a toast about one transaction says so, so that transaction's
 			// success can take it down (katomiaClearNotices)
 			if(opts.txid) el.dataset.txid = opts.txid
 
-			const text = document.createElement("span")
-			text.textContent = `${icon} ${message}`
-			addDetail(text)
+			const ic = document.createElement("span")
+			ic.className = "notice-icon"
+			ic.setAttribute("aria-hidden", "true")
+			ic.textContent = icon
+
+			const body = document.createElement("span")
+			body.className = "notice-body"
+			fill(body)
 
 			const close = document.createElement("button")
+			close.className = "notice-close"
+			close.type = "button"
+			close.setAttribute("aria-label", "Dismiss")
 			close.textContent = "×"
-
 			close.onclick = () => removeNotice(el)
 
-			// BOARD-TOASTLINK1: an optional trailing link, {href, text}. Built as a real
-			// element rather than by letting `message` carry markup — the text above is set
-			// with textContent on purpose (toast text includes server-supplied ids) and that
-			// must stay true. Any toast can use this; the success verdict is the first.
-			let link = null
-			if(opts.link?.href){
-				link = document.createElement("a")
-				link.className = "notice-link"
-				link.href = opts.link.href
-				link.target = "_blank"
-				link.rel = "noopener noreferrer"
-				link.textContent = opts.link.text || "View"
-			}
-
-			el.append(text, ...(link ? [link] : []), close)
+			el.append(ic, body, close)
 			container.appendChild(el)
 
 			if(timeout){
