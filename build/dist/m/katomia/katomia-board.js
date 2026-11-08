@@ -885,6 +885,27 @@ function boardUpdateBanner(){
 // ⛓ asked the chain (mirror node) · 🛰 backend game-state broadcast.
 const BOARD_PROVENANCE_GLYPH = { socket: "⚡", mirror: "⛓", "backend-state": "🛰" }
 
+// CELEBRATE-RETURN1 (owner 2026-11-08: "sometimes when you go to HashPack, it succeeds as soon as
+// you've signed, and then you go back and you've basically missed the animation … it might make
+// sense to delay the animation until the screen is shown again"). Two cases, both for a deal THIS
+// browser signed: the verdict lands while the page is hidden (in the wallet) → the celebration
+// waits for the page to come back (up to 3 minutes); or the verdict is processed in the first
+// seconds after coming back (a phone freezes a hidden page, so it lands on return) → it plays even
+// though txstatus marks it stale (the tx left pending while you were away, rule 5).
+let _boardVisibleSince = Date.now()
+document.addEventListener("visibilitychange", () => { if(document.visibilityState === "visible") _boardVisibleSince = Date.now() })
+function boardCelebrateOnReturn(txid, ok){
+  const t0 = Date.now()
+  const on = () => {
+    if(document.visibilityState !== "visible") return
+    document.removeEventListener("visibilitychange", on)
+    if(Date.now() - t0 > 180000) return
+    boardDiag("board:celebrate:on-return", { txid, ok, awayMs: Date.now() - t0 })
+    setTimeout(() => boardCelebrate(ok), 350)
+  }
+  document.addEventListener("visibilitychange", on)
+}
+
 function boardShowResult(txid, ok, tier, source){
   if(boardSuccessAcked.has(txid)) return
   boardSuccessAcked.add(txid)
@@ -910,6 +931,11 @@ function boardShowResult(txid, ok, tier, source){
   // left pending >5s ago — keeps the toast/feed entry below but plays NO
   // full-board animation: no wiper sweeping a board that is showing a
   // different trade, no confetti for a trade nobody is looking at.
+  // CELEBRATE-RETURN1: your own deal, with you away or only just back
+  const mineTx = typeof boardMySignedTx !== "undefined" && boardMySignedTx.has(txid)
+  const away = document.visibilityState === "hidden"
+  if(mineTx && away){ boardCelebrateOnReturn(txid, ok); tier = "stale" }
+  else if(mineTx && tier === "stale" && Date.now() - _boardVisibleSince < 8000) tier = "live"
   if(tier !== "stale"){
     boardCelebrate(ok)
     // BOARD-SWEEPWIN1 R2: capture SYNCHRONOUSLY — R1 delayed the whole call 700ms, by
@@ -968,9 +994,14 @@ function boardShowResult(txid, ok, tier, source){
         { link: link?.href || null, linkText: ok ? txid : null, txid })
     else
       // TOAST-LOOK1: one mark each — ✅ (the success type's icon) and ⌛ — not ✅ + 🟩
+      // TOAST-POLICY1 (owner 2026-11-08: the success toast "seems to persist indefinitely … they
+      // pile up … the success toast should time out as well"): ONE verdict toast at a time (a new
+      // verdict replaces the last), success for 8s, a failure for 20s (it explains itself), and
+      // your next action at the table takes either down (katomia:myaction). The message stream
+      // keeps every verdict.
       notify(ok ? `Transaction successful${prov}` : `⌛ Transaction failed or expired${prov}${why}`,
         ok ? "success" : "error",
-        { timeout: 0, link, key: `txresult:${txid}`, ...(link ? {} : { detail: txid }) })
+        { timeout: ok ? 8000 : 20000, link, key: "txresult", ...(link ? {} : { detail: txid }) })
   } catch {}
 }
 
@@ -5421,11 +5452,12 @@ async function boardDirectSign(account){
     } else if(stray.length){
       // only an EARLIER tap's stray key is outstanding: this signature is fine
       boardDiag("board:sign:stray-earlier", { txid: tx.txid, accountId: signAs, unexplained: stray.map(k => k.slice(-8)) })
-      notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
     } else if(sr && sr.hint && !sr.ready){
-      notify(`✍ Signed as ${signAs} — ${sr.hint}`, "success", { timeout: 6000 })
-    } else {
-      notify(`✍ Signed as ${signAs}`, "success", { timeout: 4000 })
+      // TOAST-POLICY1 (owner 2026-11-08: "to say that they've signed as a toast? I don't think
+      // that's so important … the message stream is absolutely fine for showing that signatures
+      // come in"): no toast for a good signature. The ring shows it; what the pool still waits
+      // for goes to the stream when it is showing.
+      try { if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system) window.katomiaChat.system(`✍ ${signAs} signed — ${sr.hint}`) } catch {}
     }
   } catch(e){
     // SIGN-ERRSTR1: readable message + the raw rejection as a structured field

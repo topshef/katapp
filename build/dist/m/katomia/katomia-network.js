@@ -511,6 +511,16 @@ function connect(onOpenAction){
     : "wss://" + location.host + "/hapi/ws"
   console.log({WS_URL})
   socket = new WebSocket(WS_URL)
+  // TOAST-POLICY1: every game action this tab sends is announced (katomia:myaction), so the toasts
+  // about the last round can step aside when the player starts the next one (katomia-helpers.js)
+  {
+    const raw = socket.send.bind(socket)
+    const ACTS = /^game_(offer|withdraw|toggleLock|orderCreate|orderFill|orderFillBatch|orderCancel|addAccount|removeAsset|removeAccount|pick|reject)$/
+    socket.send = data => {
+      try { const t = JSON.parse(data)?.type; if(ACTS.test(t)) document.dispatchEvent(new CustomEvent("katomia:myaction", { detail: { type: t } })) } catch(_){}
+      return raw(data)
+    }
+  }
 
 
   socket.onopen = async () => {
@@ -595,7 +605,20 @@ function connect(onOpenAction){
 	
 }
 	
-	const alertTimeouts = {warning: 3000, error: 0, info: 3000, success: 4000, event: 3000}
+	// TOAST-POLICY1 (owner 2026-11-08): no backend toast stays up forever any more (errors were 0 =
+	// until closed); the message stream keeps the history
+	const alertTimeouts = {warning: 6000, error: 12000, info: 4000, success: 4000, event: 4000}
+	// a player's internal number ("p133:0.0.1879") means nothing to a reader: the account is enough
+	const tidyIds = s => String(s ?? "").replace(/\bp\d+:(?=\d+\.\d+\.\d+)/g, "")
+	// TOAST-POLICY1: is this notice about me — one of my accounts, or the table itself?
+	const aboutMe = text => {
+		const ids = String(text).match(/\b\d+\.\d+\.\d+\b/g)
+		if(!ids) return true                               // a system notice: no account named
+		try {
+			const mine = new Set(Object.values(state?.accounts || {}).filter(a => typeof isMyAccount === "function" && isMyAccount(a)).map(a => a.label || String(a.id).split(":")[1]))
+			return ids.some(id => mine.has(id))
+		} catch(_){ return true }
+	}
 
 	// STATSYNC1 P5: mirror of backend kdiff.js kpatch + the gap protocol proven by
 	// T:STATSYNC-03. A game_delta whose baseSeq matches the last applied seq is
@@ -694,7 +717,20 @@ async function katomiaHandleFrame(msg){
 				// mode gate notify()'s own chat mirror uses.
 				if(m.action && document.body.dataset.kchatMode === "panel"
 					&& window.katomiaChat?.canRender?.(m.action) && window.katomiaChat.action(m)) continue
-				notify(m.message, m.type, { timeout: alertTimeouts[m.type] ?? 0 }) // persistent
+				// TOAST-POLICY1 (owner 2026-11-08: "toasts appearing constantly … you're not going to
+				// read them all anyway. And the UI already shows activity. So why show the toasts as
+				// well?"). Toasts are for what needs YOU: warnings and errors, and notices about your
+				// own accounts or the table itself. Another player's move (an action, or a notice that
+				// names only accounts that are not yours) is already on the board; it goes to the
+				// message stream when that is showing, and makes no toast.
+				const text = tidyIds(m.message)
+				const passing = (m.type === "info" || m.type === "event" || m.type === "success" || !m.type) && (m.action || !aboutMe(text))
+				if(passing){
+					if(document.body.dataset.kchatMode === "panel") try { window.katomiaChat?.system?.(text) } catch(_){}
+					try { document.dispatchEvent(new CustomEvent("katomia:gamemsg", { detail: m })) } catch(_){}
+					continue
+				}
+				notify(text, m.type, { timeout: alertTimeouts[m.type] ?? 6000 })
 				// ADDACCT-ROBUST1 (user 2026-08-05): a modal mid-action (add-account stuck
 				// on "Adding…") never heard the backend's failure toast — mirror every
 				// backend message as a DOM event so open modals can show it in their own

@@ -156,18 +156,32 @@
 		// SIGN-TOASTCLEAR1 (owner 2026-11-07): take down the toasts about one transaction, of the
 		// given types — a success clears that tx's stale warnings. The message stream keeps them.
 		// Returns how many went.
-		function clearNotices({ txid, types = ["warning", "error"] } = {}){
+		// TOAST-POLICY1: or the toasts whose key starts with keyPrefix (the verdict, "txresult").
+		function clearNotices({ txid, keyPrefix, types = ["warning", "error"] } = {}){
 			const container = document.getElementById("notifications")
-			if(!container || !txid) return 0
+			if(!container || (!txid && !keyPrefix)) return 0
 			let n = 0
 			for(const el of [...container.children]){
-				if(el.classList.contains("fade-out") || el.dataset.txid !== String(txid)) continue
-				if(!types.some(t => el.classList.contains(t))) continue
+				if(el.classList.contains("fade-out")) continue
+				if(txid && el.dataset.txid !== String(txid)) continue
+				if(keyPrefix && !String(el.dataset.key || "").startsWith(keyPrefix)) continue
+				if(types && !types.some(t => el.classList.contains(t))) continue
 				removeNotice(el); n++
 			}
 			return n
 		}
 		window.katomiaClearNotices = clearNotices
+		// TOAST-POLICY1 (owner 2026-11-08: the success toast "should also get wiped if the user carries
+		// on and does something that effectively begins a new game, like dropping another asset"):
+		// your next action at the table (katomia-network.js fires katomia:myaction on every game
+		// action this tab sends) takes down the last verdict and any passing info toasts. Warnings
+		// and errors stay: they may be about the very thing you are doing.
+		document.addEventListener("katomia:myaction", () => {
+			clearNotices({ keyPrefix: "txresult", types: null })
+			const container = document.getElementById("notifications")
+			for(const el of [...(container?.children || [])])
+				if(!el.classList.contains("fade-out") && (el.classList.contains("info") || el.classList.contains("event") || el.classList.contains("success"))) removeNotice(el)
+		})
 
 		function removeNotice(el){
 			if(!el || el.classList.contains("fade-out")) return

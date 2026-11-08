@@ -1464,7 +1464,7 @@ console.log('SIGN-PICK1/WHY2/TOASTCLEAR1: the payer is picked the instant the de
   ok(w1.some(n => n.type === 'warning' && /will NOT count/.test(n.text) && n.txid !== null), 'the stray signature is told it will NOT count — and the toast names its transaction', JSON.stringify(w1))
   const w2 = await sign(1)
   const after = w2.filter(n => !w1.some(o => o.text === n.text))
-  ok(!after.some(n => /will NOT count/.test(n.text)) && after.some(n => /Signed as/.test(n.text)), 'the right account signing next is told "Signed as", not "will NOT count" about the earlier stray key', JSON.stringify({ w1, w2 }))
+  ok(!after.some(n => /will NOT count/.test(n.text)) && !after.some(n => /Signed as/.test(n.text)), 'the right account signing next is not told "will NOT count" about the earlier stray key (and a good signature makes no toast — TOAST-POLICY1)', JSON.stringify({ w1, w2 }))
   // an unrelated warning, and the success
   const r = await page.evaluate(() => {
     notify('unrelated warning', 'warning', { timeout: 0, key: 'qa-unrelated' })
@@ -1632,6 +1632,60 @@ console.log('UX pass: toasts, the hub countdown, the carousel\'s glass bars, the
   ok(inRun && !stale && !other && idle.opened && !idle.after, 'menu: a group left open comes back open during a run of changes; after 2 minutes away or on another page it is folded', JSON.stringify({ inRun, stale, other, idle }))
   ok(!m.errs.length, 'no page errors', JSON.stringify(m.errs))
   await m.page.close()
+}
+
+// ── TOAST-POLICY1 + CELEBRATE-RETURN1 (owner 2026-11-08: success toasts piled up; toasts for every move) ──
+console.log('TOAST-POLICY1: one verdict toast that times out and steps aside for your next move; other players\' moves make no toast; CELEBRATE-RETURN1')
+{
+  const { page, errs } = await open('')
+  const toasts = () => page.evaluate(() => [...document.querySelectorAll('#notifications .notice')].filter(n => !n.classList.contains('fade-out')).map(n => ({ type: [...n.classList].find(c => c !== 'notice'), key: n.dataset.key, msg: n.querySelector('.notice-msg')?.textContent, timed: !!n._timer })))
+  await page.evaluate(() => { document.querySelectorAll('#notifications .notice').forEach(n => n.remove()); document.body.dataset.kchatMode = 'bubbles'; boardChatMode = 'bubbles'; window.__katomiaNetwork = 'testnet'
+    window.__cel = []; window.boardCelebrate = ok => window.__cel.push(ok) })
+  await page.evaluate(() => { boardShowResult('0.0.1@1.1', true, 'live', 'socket'); boardShowResult('0.0.1@2.2', true, 'live', 'socket') })
+  const a = await toasts()
+  const v = a.filter(t => t.key === 'txresult')
+  ok(v.length === 1 && v[0].timed && v[0].type === 'success', 'two successes in a row: ONE verdict toast, and it times out', JSON.stringify(a))
+  await page.evaluate(() => document.dispatchEvent(new CustomEvent('katomia:myaction', { detail: { type: 'game_offer' } })))
+  await page.waitForTimeout(600)
+  const b = await toasts()
+  ok(!b.some(t => t.key === 'txresult'), 'your next move at the table takes the verdict toast down', JSON.stringify(b))
+  // backend notices: another player's move → no toast; one about your account → a toast without the "p1:" prefix; errors time out
+  const r = await page.evaluate(async () => {
+    const mine = getAccounts().find(a => isMyAccount(a)).id.split(':')[1]
+    const send = messages => katomiaHandleFrame({ data: JSON.stringify({ type: 'game_error', gameId, messages }) })
+    document.querySelectorAll('#notifications .notice').forEach(n => n.remove())
+    await send([{ type: 'info', message: 'p133:0.0.9999 placed 0.0.5301020' }])
+    await send([{ type: 'info', message: 'p4:0.0.8888 offered HBAR', action: { v: 1, kind: 'offer' } }])
+    const others = [...document.querySelectorAll('#notifications .notice')].length
+    await send([{ type: 'info', message: `p1:${mine} received 0.0.5301020` }])
+    await send([{ type: 'error', message: 'That account is not yours to lock' }])
+    await new Promise(r => setTimeout(r, 300))
+    return { others, now: [...document.querySelectorAll('#notifications .notice')].filter(n => !n.classList.contains('fade-out')).map(n => ({ msg: n.querySelector('.notice-msg')?.textContent, timed: !!n._timer })), mine }
+  })
+  ok(r.others === 0, 'another player\'s move (prose or an action) makes no toast — it is on the board already', JSON.stringify(r))
+  ok(r.now.some(t => t.msg === `${r.mine} received 0.0.5301020`) && r.now.every(t => t.timed), 'a notice about your own account still toasts, without the "p1:" prefix; and errors no longer stay forever', JSON.stringify(r))
+  // CELEBRATE-RETURN1: your deal settles while you are in the wallet → the confetti waits for you
+  const c = await page.evaluate(async () => {
+    let hidden = true
+    Object.defineProperty(document, 'visibilityState', { configurable: true, get: () => hidden ? 'hidden' : 'visible' })
+    boardMySignedTx.set('0.0.1@3.3', Date.now())
+    window.__cel.length = 0
+    boardShowResult('0.0.1@3.3', true, 'stale', 'socket')
+    const whileAway = window.__cel.length
+    hidden = false; document.dispatchEvent(new Event('visibilitychange'))
+    await new Promise(r => setTimeout(r, 600))
+    const onReturn = window.__cel.length
+    // a verdict processed just after coming back (a frozen page) plays even though it is "stale"
+    boardMySignedTx.set('0.0.1@4.4', Date.now())
+    boardShowResult('0.0.1@4.4', true, 'stale', 'socket')
+    const justBack = window.__cel.length
+    // someone else's stale verdict still plays nothing
+    boardShowResult('0.0.1@5.5', true, 'stale', 'socket')
+    return { whileAway, onReturn, justBack, other: window.__cel.length }
+  })
+  ok(c.whileAway === 0 && c.onReturn === 1 && c.justBack === 2 && c.other === 2, 'CELEBRATE-RETURN1: away in the wallet → the celebration plays when you come back; just back → it plays; not yours and stale → nothing', JSON.stringify(c))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
 }
 
 // ── WC-ANDROIDLINK3 (owner 2026-11-07): HashPack's own link for each request's redirect, and the repair ──
