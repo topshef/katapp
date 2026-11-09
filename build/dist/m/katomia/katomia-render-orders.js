@@ -2022,8 +2022,15 @@ function renderOrderMarketSummary(){
       return w
     }
     if(stats.last){ const k = kv("", "last", "market-kv--last"); setRateContent(k.querySelector(".market-kv-val"), stats.last); k.title = String(formatRate(stats.last)); hdr.appendChild(k) }
-    if(chg !== null && isFinite(chg))
-      hdr.appendChild(kv((chg >= 0 ? "▲ +" : "▼ ") + chg.toFixed(1) + "%", "24h", chg >= 0 ? "market-kv--up" : "market-kv--down"))
+    // CHG24-FLAT1 (2026-11-09): a move that rounds to 0.0% reads as flat. It used to show as a red "▼ -0.0%"
+    // (and a green "▲ +0.0%"), an arrow and a colour for no visible change.
+    if(chg !== null && isFinite(chg)){
+      const r = Number(chg.toFixed(1))
+      const k = r === 0 ? kv("0.0%", "24h", "market-kv--flat")
+        : kv((r > 0 ? "▲ +" : "▼ ") + r.toFixed(1) + "%", "24h", r > 0 ? "market-kv--up" : "market-kv--down")
+      k.title = `${chg >= 0 ? "+" : ""}${chg.toFixed(3)}% over 24h`
+      hdr.appendChild(k)
+    }
     if(bid !== null || ask !== null)
       { const k = kv("", "bid / ask"); const v = k.querySelector(".market-kv-val")
         bid !== null ? v.appendChild(setRateContent(makeSpan("", ""), bid)) : v.appendChild(document.createTextNode("—"))
