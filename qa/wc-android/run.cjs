@@ -14,13 +14,19 @@
 //   4. other wallet a wallet that is not HashPack and publishes no link → keeps the wc: link
 // Plus: the session really is stored under "wc@2:client:0.3:session" (WC-ANDROIDLINK1 assumed the
 // "//" form and never found it).
+//   5. deaf link    WC-DEAFSOCKET1 F1, desktop: the page's relay socket is made deaf (incoming wallet
+//                   messages dropped, socket still 'connected', as on 9 Nov 21:15–21:20Z); a ping must
+//                   fail, then a sign must come back anyway — F1 restarts the transport, the wallet
+//                   answers a second ping, the request is re-sent — well inside a 30 s window
+//   6. hidden page  the same deafness on a HIDDEN page (a phone, wallet in front): F1 must not act
+//                   (no restart; R1/R2 broke phone signing by acting on failed pings)
 //
 // What it cannot tell: whether Android hands hashpack:// to HashPack and HashPack answers. That
 // only a phone can say; the diag log does (wc:redirect, then board:sign:saved).
 //
 // Needs the relay (relay.walletconnect.com) — CI, not the cloud sandbox (its proxy refuses it).
 // Env: ORIGIN (https://lab1.katomia.com), LIVE=1 to use the origin's deployed shim instead of this
-// commit's, KWC_PIN (4a3351b), QA_KWALLET_ACCOUNT (0.0.10325114).
+// commit's, KWC_PIN (a38c577), QA_KWALLET_ACCOUNT (0.0.10325114).
 // Each scenario has its own wallet. WalletConnect's Node core is a process-wide singleton unless
 // DISABLE_GLOBAL_CORE is set (globalThis._walletConnectCore_<prefix>): without it the second
 // wallet shares the first one's core and every proposal arrives twice (CI run 106).
@@ -35,7 +41,7 @@ const { createWalletSim } = require('./wallet-sim.cjs')
 
 const ORIGIN = (process.env.ORIGIN || 'https://lab1.katomia.com').replace(/\/+$/, '')
 const LIVE = process.env.LIVE === '1'
-const KWC_PIN = process.env.KWC_PIN || '4a3351b'
+const KWC_PIN = process.env.KWC_PIN || 'a38c577'
 const ACCOUNT = process.env.QA_KWALLET_ACCOUNT || '0.0.10325114'
 const DIST = path.resolve(__dirname, '../../build/dist')
 const UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36'
@@ -65,8 +71,10 @@ const HOOK_URI = () => {
   } catch (e) { return null }
 }
 
-function frozenTx() {
-  return Array.from(new TransferTransaction()
+function frozenTx(validS) {
+  const t = new TransferTransaction()
+  if (validS) t.setTransactionValidDuration(validS)   // deaf scenarios: a short window bounds the cap
+  return Array.from(t
     .addHbarTransfer(AccountId.fromString(ACCOUNT), Hbar.fromTinybars(-1))
     .addHbarTransfer(AccountId.fromString('0.0.98'), Hbar.fromTinybars(1))
     .setTransactionId(TransactionId.generate(AccountId.fromString(ACCOUNT)))
@@ -75,11 +83,12 @@ function frozenTx() {
     .freeze().toBytes())
 }
 
-async function scenario(browser, cfg, name, { metadata, before, expect }) {
+async function scenario(browser, cfg, name, { metadata, before, expect, desktop, run }) {
   console.log(name)
   const sim = await createWalletSim({ projectId: cfg.projectId, relayUrl: cfg.relayUrl, accountId: ACCOUNT, metadata,
     storagePath: path.join(os.tmpdir(), `wc-android-${process.pid}-${total}.db`) })
-  const ctx = await browser.newContext({ userAgent: UA, viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })
+  const ctx = desktop ? await browser.newContext({ viewport: { width: 1280, height: 800 } })
+    : await browser.newContext({ userAgent: UA, viewport: { width: 390, height: 800 }, isMobile: true, hasTouch: true })
   const page = await ctx.newPage()
   const errs = [], consoleTail = []
   page.on('pageerror', e => errs.push(String(e).slice(0, 200)))
@@ -102,6 +111,9 @@ async function scenario(browser, cfg, name, { metadata, before, expect }) {
     window.__diag = []
     window.kdiag = (m, d) => { window.__diag.push([m, d]) }
     window.__wc = {}
+    // deaf scenarios: let the test report the page hidden (a phone with the wallet in front)
+    window.__vis = 'visible'
+    Object.defineProperty(Document.prototype, 'visibilityState', { configurable: true, get() { return window.__vis } })
     const put = IDBObjectStore.prototype.put
     IDBObjectStore.prototype.put = function (value, key) {
       try { const k = key !== undefined ? key : value && value.key; if (typeof k === 'string' && k.startsWith('wc@2')) window.__wc[k] = value } catch (e) {}
@@ -140,6 +152,7 @@ async function scenario(browser, cfg, name, { metadata, before, expect }) {
     // what the modal stores on Android after the pairing (CoreUtil.setWalletConnectAndroidDeepLink)
     await page.evaluate(([k, v]) => localStorage.setItem(k, JSON.stringify(v)), [CHOICE, { href: uri.split('?')[0], name: 'Android' }])
     if (before) await before(page)
+    if (run) { await run(page, sim); ok(!errs.length, 'no page errors', JSON.stringify(errs)); return }
     const sessionKeys = await page.evaluate(() => new Promise(res => {
       const q = indexedDB.open('WALLET_CONNECT_V2_INDEXED_DB')
       q.onsuccess = () => { try { const r = q.result.transaction('keyvaluestorage', 'readonly').objectStore('keyvaluestorage').getAllKeys(); r.onsuccess = () => { q.result.close(); res(r.result.filter(k => /session$/.test(String(k)))) } } catch (e) { res(['ERR ' + e.message]) } }
@@ -177,6 +190,37 @@ async function scenario(browser, cfg, name, { metadata, before, expect }) {
   }
 }
 
+
+// WC-DEAFSOCKET1: make the page's relay socket deaf the way it was on 9 Nov — still "connected",
+// but every incoming wallet message (sign answers, ping answers) goes nowhere — until the next
+// reconnect, which is exactly what cured it live. Payloads are dropped at the relayer's
+// onProviderPayload (an own property shadows the class method its payload handler calls).
+const DEAFEN = () => {
+  const r = window.WC.qaRelayer && window.WC.qaRelayer()
+  if (!r) return 'no qaRelayer (bundle without WC-DEAFSOCKET1)'
+  window.__dropped = 0
+  r.onProviderPayload = function () { window.__dropped++ }
+  if (!r.__qaCure) { r.__qaCure = true; r.on('relayer_connect', () => { delete r.onProviderPayload; window.__cured = (window.__cured || 0) + 1 }) }
+  return 'deaf'
+}
+const deafDiag = page => page.evaluate(() => window.__diag.filter(x => /^wc:(deaf|session:ping|relay)/.test(x[0])).map(x => [x[0], x[1]]))
+async function signDeaf(page, sim, validS) {
+  const bytes = frozenTx(validS)
+  const t0 = Date.now()
+  const r = await page.evaluate(async ({ a, b }) => {
+    try { const s = await window.WC.signTx({ accountId: a, transactionBytes: new Uint8Array(b) }); return { hex: s.signedTransactionHex } }
+    catch (e) { return { error: String(e && e.message || e) } }
+  }, { a: ACCOUNT, b: bytes })
+  let verifies = false
+  if (r.hex) {
+    const back = Transaction.fromBytes(Buffer.from(r.hex, 'hex'))
+    const pub = PublicKey.fromString(sim.publicKeyHex)
+    const mine = (back._signedTransactions.list[0]?.sigMap?.sigPair || []).find(p => Buffer.from(p.pubKeyPrefix).toString('hex') === Buffer.from(pub.toBytesRaw()).toString('hex'))
+    verifies = !!mine && pub.verify(back._signedTransactions.list[0].bodyBytes, mine.ed25519)
+  }
+  return { ...r, verifies, ms: Date.now() - t0 }
+}
+
 async function main() {
   const cfg = await (await fetch(`${ORIGIN}/vendor/walletconnect/config.json`)).json().catch(() => null)
     || JSON.parse(fs.readFileSync(path.join(DIST, 'vendor/walletconnect/config.json'), 'utf8'))
@@ -201,6 +245,43 @@ async function main() {
     await scenario(browser, cfg, '4. a wallet that is not HashPack and publishes no link keeps the wc: link', {
       metadata: KWALLET,
       expect: ({ topic, pairingTopic }) => new RegExp(`^wc:${esc(pairingTopic)}@2/wc\\?requestId=\\d+&sessionTopic=${esc(topic)}$`),
+    })
+    await scenario(browser, cfg, '5. desktop: a deaf relay link is recovered (WC-DEAFSOCKET1 F1)', {
+      metadata: HASHPACK, desktop: true,
+      run: async (page, sim) => {
+        // healthy first: a sign comes straight back
+        const warm = await signDeaf(page, sim, 30)
+        ok(warm.verifies, 'healthy link: the wallet signed', JSON.stringify(warm))
+        ok((await page.evaluate(DEAFEN)) === 'deaf', 'the link is made deaf')
+        const ping = await page.evaluate(() => window.WC.pingSession())
+        ok(ping.ok === false, 'deaf link: a ping to the wallet fails (the 9 Nov symptom reproduced)', JSON.stringify(ping))
+        // (a direct ping does not trigger F1 — only a ping inside a sign does — so no cooldown to wait out)
+        const r = await signDeaf(page, sim, 30)
+        const dg = await deafDiag(page)
+        log('deaf diag:', JSON.stringify(dg).slice(0, 900))
+        ok(r.verifies, `deaf link: the sign still came back and verifies (${r.ms} ms)`, JSON.stringify({ r, dg }))
+        ok(r.ms < 25000, 'well inside the 30 s validity window', r.ms)
+        ok(dg.some(x => x[0] === 'wc:deaf:restart'), 'F1 restarted the transport', JSON.stringify(dg))
+        ok(dg.some(x => x[0] === 'wc:deaf:ping2' && x[1].ok === true), 'the wallet answered the second ping', JSON.stringify(dg))
+        const cured = await page.evaluate(() => ({ dropped: window.__dropped, cured: window.__cured || 0 }))
+        ok(cured.dropped > 0 && cured.cured > 0, 'messages really were dropped, and the reconnect cured it', JSON.stringify(cured))
+        log('answered by:', dg.some(x => x[0] === 'wc:deaf:resend-answered' && !x[1].settledAlready) ? 'the resend' : 'the original request (relay redelivered after the reconnect)')
+        const after = await signDeaf(page, sim, 30)
+        ok(after.verifies && after.ms < 5000, `after recovery the next sign is quick (${after.ms} ms)`, JSON.stringify(after))
+      },
+    })
+    await scenario(browser, cfg, '6. hidden page (a phone, wallet in front): F1 leaves a deaf link alone', {
+      metadata: HASHPACK, desktop: true,
+      run: async (page, sim) => {
+        ok((await page.evaluate(DEAFEN)) === 'deaf', 'the link is made deaf')
+        await page.evaluate(() => { window.__vis = 'hidden' })
+        const r = await signDeaf(page, sim, 20)
+        const dg = await deafDiag(page)
+        log('hidden diag:', JSON.stringify(dg).slice(0, 600))
+        ok(!r.verifies && /KWC-TIMEOUT/.test(r.error || ''), 'no answer, ends at the window as before (KWC-TIMEOUT)', JSON.stringify(r))
+        ok(dg.some(x => x[0] === 'wc:deaf:skip' && x[1].reason === 'skip-hidden'), 'F1 saw the hidden page and stood aside', JSON.stringify(dg))
+        ok(!dg.some(x => x[0] === 'wc:deaf:restart'), 'no transport restart on a hidden page', JSON.stringify(dg))
+      },
     })
   } finally { await browser.close() }
   console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ''))

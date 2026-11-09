@@ -32,7 +32,7 @@ name: katui
 on:
   push:
     branches: [main, lab1, 'claude/**', 'ccr-**']   # KATAPP-SPLIT1: katapp's trunk is main; lab1 deploys lab1.katomia.com
-    paths: [build/**, public_html/**, qa/sign/**, qa/board/**, qa/ab/**, qa/wc-android/**, .github/workflows/katui.yml]
+    paths: [build/**, public_html/**, qa/sign/**, qa/board/**, qa/ab/**, qa/wc-android/**, qa/kwc/**, .github/workflows/katui.yml]
   schedule:
     - cron: '41 */6 * * *'
   workflow_dispatch:
@@ -50,6 +50,7 @@ jobs:
         with: { node-version: 22 }
       - run: node build/router.test.mjs
       - run: node build/router.e2e.mjs
+      - run: node --test qa/kwc/deaf.test.mjs   # WC-DEAFSOCKET1 F1: the deaf-link rules
 
   fresh:
     runs-on: ubuntu-latest
