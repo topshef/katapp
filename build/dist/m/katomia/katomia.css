@@ -3419,6 +3419,24 @@ body.spectating .board-wedge{ pointer-events: none; }
 .tx-acct--mine{ font-weight:700; color:#111827; }
 .tx-swapline--mine .tx-give, .tx-swapline--mine .tx-get{ font-weight:600; }
 .tx-swapline .tx-mine-tag{ font-size:11px; padding:0 6px; }
+/* TXLIST-ALIGN1: the swap lines are a 4-column grid (account · gives · ⇄ · gets), left-aligned.
+   They were a centred flex column (.tx-row > * sets align-items:center), so lines of different
+   lengths started at different places. display:contents lets each line's cells join the grid. */
+#transactionsSection .tx-row > .tx-assets--lines{
+  display:grid; grid-template-columns:repeat(4, max-content); column-gap:8px; row-gap:3px;
+  justify-content:start; align-items:baseline;
+}
+#transactionsSection .tx-assets--lines > .tx-swapline{ display:contents; }
+.tx-acct-cell{ display:inline-flex; align-items:baseline; gap:6px; }
+/* phones: the bold id says "you"; the tag would widen the account column past the card */
+@media (max-width: 560px){ .tx-swapline .tx-mine-tag{ display:none; } }
+/* very narrow: fall back to wrapping lines rather than a grid that overflows */
+@media (max-width: 350px){
+  #transactionsSection .tx-row > .tx-assets--lines{ display:flex; flex-direction:column; align-items:flex-start; }
+  #transactionsSection .tx-assets--lines > .tx-swapline{ display:flex; }
+}
+/* RATE-DISPLAY1: nerd mode shows the full figure with the digits past the fifth faded */
+.rate-tail{ opacity:.38; font-weight:400; }
 .tx-give{ color:#b3282d; }
 .tx-get{ color:#177245; }
 .tx-swaparrow{ color:#a1a1aa; }

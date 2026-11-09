@@ -394,10 +394,14 @@ function createNftTxAssets(nftTransfers, ftTransfers){
 function makeTxSwapLine(accountId, gives, gets, mine = false){
   const line = document.createElement("div")
   line.className = "tx-swapline" + (mine ? " tx-swapline--mine" : "")
+  // TXLIST-ALIGN1: id and "you" tag share ONE cell, so every line has the same four cells
+  // (account · gives · ⇄ · gets) and the card can lay them out as aligned columns.
+  const cell = makeSpan("tx-acct-cell", "")
   const acct = makeSpan("tx-acct num" + (mine ? " tx-acct--mine" : ""), accountId)
   acct.dataset.ownerAccount = accountId
-  line.appendChild(acct)
-  if(mine) line.appendChild(makeSpan("order-mine-tag tx-mine-tag", "you"))
+  cell.appendChild(acct)
+  if(mine) cell.appendChild(makeSpan("order-mine-tag tx-mine-tag", "you"))
+  line.appendChild(cell)
   const giveEl = makeSpan("tx-give num", gives)
   const arrow = makeSpan("tx-swaparrow", "⇄")
   const getEl = makeSpan("tx-get num", gets)
@@ -590,7 +594,7 @@ function createTxRow(tx){
 
   const rateInfo = computeTxRate(tx)
   if(rateInfo){
-    const r = makeSpan("tx-rate num", "@" + formatRateShort(rateInfo))
+    const r = setRateContent(makeSpan("tx-rate num", ""), rateInfo, "@")
     r.title = "Effective rate " + formatRate(rateInfo)
     heroRow.appendChild(r)
   }
@@ -1283,7 +1287,7 @@ function renderMarketHeatmap(pair,heatmap,opts={}){
     const t = document.createElementNS(NS, "text")
     t.setAttribute("x", Math.min(lx + 3, width - pad - 30)); t.setAttribute("y", pad + 9)
     t.setAttribute("class", "market-axis-label market-lastline-label")
-    t.textContent = "last " + formatRate(last)
+    t.textContent = "last " + formatRateShort(last); t.title = "last " + formatRate(last)
     svg.appendChild(t)
   }
 
@@ -2012,11 +2016,15 @@ function renderOrderMarketSummary(){
       w.append(b, l)
       return w
     }
-    if(stats.last){ const k = kv(formatRateShort(stats.last), "last", "market-kv--last"); k.title = formatRate(stats.last); hdr.appendChild(k) }
+    if(stats.last){ const k = kv("", "last", "market-kv--last"); setRateContent(k.querySelector(".market-kv-val"), stats.last); k.title = String(formatRate(stats.last)); hdr.appendChild(k) }
     if(chg !== null && isFinite(chg))
       hdr.appendChild(kv((chg >= 0 ? "▲ +" : "▼ ") + chg.toFixed(1) + "%", "24h", chg >= 0 ? "market-kv--up" : "market-kv--down"))
     if(bid !== null || ask !== null)
-      { const k = kv(`${bid !== null ? formatRateShort(bid) : "—"} / ${ask !== null ? formatRateShort(ask) : "—"}`, "bid / ask"); k.title = `${bid ?? "—"} / ${ask ?? "—"}`; hdr.appendChild(k) }
+      { const k = kv("", "bid / ask"); const v = k.querySelector(".market-kv-val")
+        bid !== null ? v.appendChild(setRateContent(makeSpan("", ""), bid)) : v.appendChild(document.createTextNode("—"))
+        v.appendChild(document.createTextNode(" / "))
+        ask !== null ? v.appendChild(setRateContent(makeSpan("", ""), ask)) : v.appendChild(document.createTextNode("—"))
+        k.title = `${bid !== null ? formatRate(bid) : "—"} / ${ask !== null ? formatRate(ask) : "—"}`; hdr.appendChild(k) }
     if(spread !== null && isFinite(spread) && spread >= 0)
       hdr.appendChild(kv(spread.toFixed(1) + "%", "spread"))
     hdr.appendChild(kv(String(stats.count || 0), "trades 24h"))
@@ -2486,6 +2494,36 @@ function formatRateShort(rate){
   return isFinite(n) ? parseFloat(n.toPrecision(5)) : rate
 }
 
+// RATE-DISPLAY1 (owner 2026-11-09: "5 sig fig would handle it on display for normal view.
+// Nerds might want to see more in that mode"). Fills match on whole token units; the long
+// figure is a ratio of two integers and adds nothing a person can act on — the bots' own price
+// step near 0.136 is ~0.00002, i.e. ~5 significant figures. So: normal view shows 5 significant
+// figures; nerd mode shows the full figure with the digits past the fifth faded, so the
+// readable part still leads. Full figure on hover in both.
+function sigDigitsEnd(str, n){
+  let seen = 0, started = false
+  for(let i = 0; i < str.length; i++){
+    const c = str[i]
+    if(c < "0" || c > "9") continue
+    if(!started && c === "0") continue
+    started = true
+    if(++seen === n) return i + 1
+  }
+  return str.length
+}
+function setRateContent(el, rate, prefix = ""){
+  const full = String(formatRate(rate))
+  el.textContent = ""
+  el.appendChild(makeSpan("rate-short nerd-hide", prefix + formatRateShort(rate)))
+  const fullEl = makeSpan("rate-full nerd-only", prefix)
+  const cut = sigDigitsEnd(full, 5)
+  fullEl.appendChild(document.createTextNode(full.slice(0, cut)))
+  if(cut < full.length) fullEl.appendChild(makeSpan("rate-tail", full.slice(cut)))
+  el.appendChild(fullEl)
+  el.title = prefix + full
+  return el
+}
+
 // The Hedera account ids that belong to me on this board.
 function myAccountIdSet(){
   return new Set(
@@ -2949,7 +2987,7 @@ function createOrderRow({ orderId, order, playerId, ghost = false, gone = null }
   const priceEl = document.createElement("span")
   priceEl.className = "order-price num"
   if(fxRow){
-    priceEl.textContent = formatRate(fxRow.displayRate)
+    setRateContent(priceEl, fxRow.displayRate)   // RATE-DISPLAY1
     const pairEl = makeSpan("order-price-pair", " " + fxRow.pair)
     priceEl.appendChild(pairEl)
   } else {
