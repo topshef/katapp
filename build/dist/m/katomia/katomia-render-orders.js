@@ -1986,12 +1986,17 @@ function renderOrderMarketSummary(){
     // bid/ask · spread · trades · my open orders · ＋ New order. All client-side
     // (order rows here, trade stats cached by renderTransactions).
     const stats = window.__ktxStats?.[pair] || {}
-    const buys = rows.filter(r => r.side === "buy").map(r => r.displayRate)
-    const sells = rows.filter(r => r.side === "sell").map(r => r.displayRate)
+    // HEADER-LIVE1 (2026-11-09): a fully settled GTC order stays in the state (the list shows
+    // it as "filled ✓"), and the header used to count it — the owner's filled BUY @0.137 sat as
+    // the "best bid" above every ask, so the book read as crossed. Bid/ask and "my orders" count
+    // only orders that can still trade.
+    const live = rows.filter(r => !getOrderFillStatus(r.orderId).fullySettled)
+    const buys = live.filter(r => r.side === "buy").map(r => r.displayRate)
+    const sells = live.filter(r => r.side === "sell").map(r => r.displayRate)
     const bid = buys.length ? Math.max(...buys) : null
     const ask = sells.length ? Math.min(...sells) : null
     const spread = bid && ask && ask > 0 ? ((ask - bid) / ask) * 100 : null
-    const myOpen = rows.filter(r => r.playerId === currentPlayerId).length
+    const myOpen = live.filter(r => r.playerId === currentPlayerId).length
     const chg = stats.last && stats.first ? ((stats.last - stats.first) / stats.first) * 100 : null
 
     const hdr = document.createElement("div")
