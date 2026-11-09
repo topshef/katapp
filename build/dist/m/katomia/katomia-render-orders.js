@@ -391,12 +391,13 @@ function createNftTxAssets(nftTransfers, ftTransfers){
 // ORDER-UIPASS1 slice 1: swap LINES, not prose chips — per account (full id,
 // never shortened): id · −gives (red) ⇄ +gets (green). Amounts in tabular
 // numerals; the account span carries data-owner-account for the 💠/△ overlay.
-function makeTxSwapLine(accountId, gives, gets){
+function makeTxSwapLine(accountId, gives, gets, mine = false){
   const line = document.createElement("div")
-  line.className = "tx-swapline"
-  const acct = makeSpan("tx-acct num", accountId)
+  line.className = "tx-swapline" + (mine ? " tx-swapline--mine" : "")
+  const acct = makeSpan("tx-acct num" + (mine ? " tx-acct--mine" : ""), accountId)
   acct.dataset.ownerAccount = accountId
   line.appendChild(acct)
+  if(mine) line.appendChild(makeSpan("order-mine-tag tx-mine-tag", "you"))
   const giveEl = makeSpan("tx-give num", gives)
   const arrow = makeSpan("tx-swaparrow", "⇄")
   const getEl = makeSpan("tx-get num", gets)
@@ -428,11 +429,15 @@ function createSimpleFxTxAssets(transfers){
     })
   })
 
-  Object.entries(byAccount).forEach(([accountId,v]) => {
-    const neg = v.neg.map(x => getAssetDisplay(x.tokenId, x.amount)).join(", ")
-    const pos = v.pos.map(x => getAssetDisplay(x.tokenId, x.amount)).join(", ")
-    el.appendChild(makeTxSwapLine(accountId, neg ? "−" + neg : "", pos ? "+" + pos : ""))
-  })
+  // TXLIST-MINE1: my accounts first, in bold with a "you" tag; everyone else plain.
+  const mineIds = myAccountIdSet()
+  Object.entries(byAccount)
+    .sort(([a], [b]) => (mineIds.has(b) ? 1 : 0) - (mineIds.has(a) ? 1 : 0))
+    .forEach(([accountId,v]) => {
+      const neg = v.neg.map(x => getAssetDisplay(x.tokenId, x.amount)).join(", ")
+      const pos = v.pos.map(x => getAssetDisplay(x.tokenId, x.amount)).join(", ")
+      el.appendChild(makeTxSwapLine(accountId, neg ? "−" + neg : "", pos ? "+" + pos : "", mineIds.has(accountId)))
+    })
 
   return el
 
@@ -548,6 +553,11 @@ function createTxRow(tx){
   const sourceText = sourceInfo ? ` ${sourceInfo}` : ""
 
   row.dataset.orderSide = market?.side || ""
+  // TXLIST-MINE1 (owner 2026-11-09, You tab: "confusing trade list"): the stripe used the MAIN
+  // order's side — in a fill where Alice's sell was the maker, the owner's own BUY showed red.
+  // When the deal touches my accounts, colour it by MY side instead, and mark the row.
+  const mySide = myTxSide(tx)
+  if(mySide){ row.dataset.orderSide = mySide; row.classList.add("tx-row--mine") }
 
   // ── ORDER-UIPASS1 slice 1: hero row + swap lines ─────────────────────────────
   // row1: avatar · 💠 · type icon · lifecycle status chip (✍ auto-sign folded in
@@ -580,8 +590,8 @@ function createTxRow(tx){
 
   const rateInfo = computeTxRate(tx)
   if(rateInfo){
-    const r = makeSpan("tx-rate num", "@" + formatRate(rateInfo))
-    r.title = "Effective rate"
+    const r = makeSpan("tx-rate num", "@" + formatRateShort(rateInfo))
+    r.title = "Effective rate " + formatRate(rateInfo)
     heroRow.appendChild(r)
   }
 
@@ -2002,11 +2012,11 @@ function renderOrderMarketSummary(){
       w.append(b, l)
       return w
     }
-    if(stats.last) hdr.appendChild(kv(formatRate(stats.last), "last", "market-kv--last"))
+    if(stats.last){ const k = kv(formatRateShort(stats.last), "last", "market-kv--last"); k.title = formatRate(stats.last); hdr.appendChild(k) }
     if(chg !== null && isFinite(chg))
       hdr.appendChild(kv((chg >= 0 ? "▲ +" : "▼ ") + chg.toFixed(1) + "%", "24h", chg >= 0 ? "market-kv--up" : "market-kv--down"))
     if(bid !== null || ask !== null)
-      hdr.appendChild(kv(`${bid !== null ? formatRate(bid) : "—"} / ${ask !== null ? formatRate(ask) : "—"}`, "bid / ask"))
+      { const k = kv(`${bid !== null ? formatRateShort(bid) : "—"} / ${ask !== null ? formatRateShort(ask) : "—"}`, "bid / ask"); k.title = `${bid ?? "—"} / ${ask ?? "—"}`; hdr.appendChild(k) }
     if(spread !== null && isFinite(spread) && spread >= 0)
       hdr.appendChild(kv(spread.toFixed(1) + "%", "spread"))
     hdr.appendChild(kv(String(stats.count || 0), "trades 24h"))
@@ -2467,6 +2477,42 @@ function getOrderFillStatus(orderId){
 
 function formatRate(rate){
   return parseFloat(Number(rate).toPrecision(12))
+}
+
+// TXLIST-MINE1: 5 significant figures where a person reads a price at a glance (trade rows,
+// header); the full figure stays on hover. "@0.135533612877" → "@0.13553".
+function formatRateShort(rate){
+  const n = Number(rate)
+  return isFinite(n) ? parseFloat(n.toPrecision(5)) : rate
+}
+
+// The Hedera account ids that belong to me on this board.
+function myAccountIdSet(){
+  return new Set(
+    Object.values(state?.accounts || {})
+      .filter(a => a.playerId === currentPlayerId)
+      .map(a => a.accountId)
+  )
+}
+
+// My side of a deal on its pair: "buy" if my accounts' net of the pair's BASE asset is up,
+// "sell" if down, null when the deal does not touch me or the pair is unknown.
+function myTxSide(tx){
+  const mine = myAccountIdSet()
+  if(!mine.size) return null
+  const pairLabel = getTxPair(tx)
+  const p = (typeof getAcceptedPairs === "function" ? getAcceptedPairs() : [])
+    .find(x => x.label === pairLabel || `${x.base}/${x.quote}` === pairLabel)
+  if(!p) return null
+  const b = tx.pchbasis?.transfers || {}
+  let net = 0, touched = false
+  for(const x of [...(b.tokenTransfers || []), ...(b.hbarTransfers || []).map(h => ({ ...h, tokenId: "HBAR" }))]){
+    if(!mine.has(x.accountId)) continue
+    touched = true
+    if(x.tokenId === p.base) net += Number(x.amount) || 0
+  }
+  if(!touched) return null
+  return net > 0 ? "buy" : net < 0 ? "sell" : null
 }
 
 function getOrderMarketLabel(orderId, playerId, enriched){

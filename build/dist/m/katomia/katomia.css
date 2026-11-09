@@ -3414,7 +3414,11 @@ body.spectating .board-wedge{ pointer-events: none; }
 .tx-hero .kchip{ margin-left:2px; }
 .tx-assets--lines{ display:flex; flex-direction:column; gap:3px; margin-top:6px; }
 .tx-swapline{ display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; }
-.tx-acct{ font-weight:600; color:#374151; font-size:12.5px; }
+.tx-acct{ font-weight:400; color:#6b7280; font-size:12.5px; }
+/* TXLIST-MINE1: only my accounts stand out — bold, dark, "you" tag; my line comes first */
+.tx-acct--mine{ font-weight:700; color:#111827; }
+.tx-swapline--mine .tx-give, .tx-swapline--mine .tx-get{ font-weight:600; }
+.tx-swapline .tx-mine-tag{ font-size:11px; padding:0 6px; }
 .tx-give{ color:#b3282d; }
 .tx-get{ color:#177245; }
 .tx-swaparrow{ color:#a1a1aa; }
