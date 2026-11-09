@@ -1313,23 +1313,214 @@ function getFastThumb(url, imgEl){
     // Every chip reads as a short phrase; the setting's own name stays on hover (title).
     // A setting with no phrase falls back to its name in words ("Idle account hours: 1") rather
     // than the raw key.
+    // HEADER-HELP1 (owner 2026-11-09, same day: "testnet is kind of an attribute, just like public
+    // … when you tap a chip like public or valid for 60 seconds you get a modal explaining what it
+    // is … show the other variants … plain informational for now, with an OK button … a good place
+    // to bring in feedback … thumbs up, thumbs down, comment"). Every chip is a button; the
+    // explainers live in headerHelp below, so a new setting gets its help in one place.
     const metaPhrases = {
       tradingMode:          { orderBook: "📊 Order book", proposal: "💡 Proposal", debug: "🛠️ Debug" },
       visibility:           { public: "🌍 Public", unlisted: "🔗 Unlisted", private: "🔒 Private" },
       lockRule:             { cluster: "☆ Cluster lock", active: "☆☆ Active lock", all: "🌍 Lock all" },
     }
+    // seconds in words: under two minutes stays in seconds ("Valid for 60 seconds", as asked);
+    // whole hours up to two days read as hours ("Strikes after 24 hours", not "86400 seconds")
+    const fmtDuration = s => {
+      const n = Number(s)
+      if(!isFinite(n)) return String(s)
+      const unit = (k, w) => `${k} ${w}${k === 1 ? "" : "s"}`
+      if(n < 120) return unit(n, "second")
+      if(n % 3600 === 0 && n <= 172800) return unit(n / 3600, "hour")
+      if(n % 86400 === 0) return unit(n / 86400, "day")
+      if(n % 60 === 0) return unit(n / 60, "minute")
+      return unit(n, "second")
+    }
     const configFormats = {
-      txDelaySeconds:       v => Number(v) === 0 ? "⚡ Strikes immediately" : `⏱ Strikes after ${v} seconds`,
-      validDurationSeconds: v => `⏳ Valid for ${v} seconds`,
+      txDelaySeconds:       v => Number(v) === 0 ? "⚡ Strikes immediately" : `⏱ Strikes after ${fmtDuration(v)}`,
+      validDurationSeconds: v => `⏳ Valid for ${fmtDuration(v)}`,
     }
     const configTitles = {
-      tradingMode: "Trading mode", txDelaySeconds: "Strike delay (txDelaySeconds)",
-      validDurationSeconds: "How long a struck transaction stays signable (validDurationSeconds)",
+      tradingMode: "Trading mode", txDelaySeconds: "Strike timing (txDelaySeconds)",
+      validDurationSeconds: "Signing window (validDurationSeconds)",
     }
     const humanKey = k => { const w = String(k).replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase(); return w.charAt(0).toUpperCase() + w.slice(1) }
-    const metaChip = (text, title) => `<span class="meta-chip"${title ? ` title="${escapeAttr(title)}"` : ""}>${text}</span>`
-    const metaFact = (text, title) => `<span class="meta-fact"${title ? ` title="${escapeAttr(title)}"` : ""}>${text}</span>`
     function escapeAttr(t){ return String(t).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;") }
+
+    // ── HEADER-HELP1: what each chip means ──────────────────────────────────────────────
+    // options: [key, phrase, explanation]. pick(value) names the option this circle uses;
+    // current(value) overrides the highlighted box when the exact value matters (durations).
+    const joinPick = v => v === "*" ? "*" : (v && typeof v === "object" && !Array.isArray(v)) ? v.rule : "members"
+    const headerHelp = {
+      network: {
+        name: "Network", what: "Which Hedera network this circle settles on.",
+        options: [
+          ["testnet", "TESTNET", "Hedera's test network. Its HBAR and tokens have no real value, so it is the place to learn and try things out."],
+          ["mainnet", "MAINNET", "Hedera's main network. Real HBAR and real tokens: once a deal settles, it is final."],
+          ["playnet", "PLAYNET", "No chain at all. Deals are pretend: nothing is signed or sent to Hedera."],
+        ],
+      },
+      tradingMode: {
+        name: "Trading mode", what: "How offers are made and matched in this circle.",
+        options: [
+          ["orderBook", "📊 Order book", "People post orders to buy or sell at a price. When a buy and a sell cross, they are matched and struck as one deal."],
+          ["proposal", "💡 Proposal", "People put things in each other's baskets. When everyone involved agrees, it all swaps at once, as one deal."],
+          ["debug", "🛠️ Debug", "A mode for testing the app itself; things may behave oddly."],
+        ],
+      },
+      txDelaySeconds: {
+        name: "Strike timing",
+        what: "When a deal is struck: turned into one transaction for everyone in it to sign.",
+        pick: v => Number(v) === 0 ? "0" : "delay",
+        current: v => Number(v) === 0 ? null
+          : [configFormats.txDelaySeconds(v), `Once a deal is agreed, this circle waits ${fmtDuration(v)} before striking it, so there is time to look again.`],
+        options: [
+          ["0", "⚡ Strikes immediately", "The deal is struck the moment it is agreed."],
+          ["delay", "⏱ Strikes after a delay", "The circle waits a set time after a deal is agreed, from seconds to a day, before striking it."],
+        ],
+      },
+      validDurationSeconds: {
+        name: "Signing window",
+        what: "Once a deal is struck, everyone in it signs one Hedera transaction. Hedera accepts the signatures only inside this window. If anyone is too late, the transaction expires and nothing moves.",
+        current: v => [configFormats.validDurationSeconds(v), `Everyone in a deal has ${fmtDuration(v)} from the strike to sign.`],
+        options: [
+          ["30", "⏳ Valid for 30 seconds", "Short. Suits bots and quick traders; someone still opening a wallet may miss it."],
+          ["60", "⏳ Valid for 60 seconds", "A minute. Enough for most people with their wallet to hand."],
+          ["120", "⏳ Valid for 2 minutes", "Hedera's default."],
+          ["180", "⏳ Valid for 3 minutes", "The longest Hedera allows."],
+        ],
+      },
+      visibility: {
+        name: "Visibility", what: "Who can find this circle and look at it.",
+        options: [
+          ["public", "🌍 Public", "Listed with the other circles. Anyone can open it and watch."],
+          ["unlisted", "🔗 Unlisted", "Not listed, but anyone with the link can open it."],
+          ["private", "🔒 Private", "Not listed, and closed to people outside it."],
+        ],
+      },
+      joinRule: {
+        name: "Who can join", what: "Who can take a seat and trade. Anyone who can open the circle can watch.",
+        pick: joinPick,
+        current: v => [v === "*" ? "🙌 Anyone can join" : `Join: ${formatJoinRule(v)}`, null],
+        options: [
+          ["*", "🙌 Anyone can join", "Any account can take a seat."],
+          ["members", "🎟 Members", "Only listed accounts, or holders of a listed token, can join. Everyone else watches."],
+          ["accountGroup", "🔐 A named group", "Only accounts in a group the circle names (its admins, say) can join."],
+          ["accountIdRange", "🔐 An account range", "Only accounts whose ID falls in a set range can join."],
+        ],
+      },
+      lockRule: {
+        name: "Lock rule", what: "Who locks and settles together once a deal is agreed.",
+        options: [
+          ["cluster", "☆ Cluster lock", "Each group of people trading with each other locks and settles on its own; everyone else carries on."],
+          ["active", "☆☆ Active lock", "Everyone with something in a basket locks together, and it all settles as one deal, so separate trades can depend on each other."],
+          ["all", "🌍 Lock all", "The whole circle locks and settles together, every account at once."],
+        ],
+      },
+    }
+    // the value a chip stands for, read from the circle at tap time (the header re-renders often)
+    function headerHelpValue(key){
+      if(key === "network" || key === "visibility" || key === "joinRule" || key === "lockRule") return gameMeta?.[key]
+      return gameMeta?.config?.[key]
+    }
+
+    // chip = a button when there is help for it, a plain pill otherwise
+    function metaChip(text, helpKey, cls = ""){
+      const h = helpKey && headerHelp[helpKey]
+      const title = configTitles[helpKey] || h?.name || humanKey(helpKey || "")
+      return h
+        ? `<button type="button" class="meta-chip ${cls}" data-help="${escapeAttr(helpKey)}" title="${escapeAttr(title)} — tap for what it means">${text}</button>`
+        : `<span class="meta-chip ${cls}"${title ? ` title="${escapeAttr(title)}"` : ""}>${text}</span>`
+    }
+
+    let _helpReturnFocus = null
+    function closeHeaderHelp(){
+      const m = document.getElementById("kxHelp")
+      if(!m || m.classList.contains("hidden")) return
+      m.classList.add("hidden")
+      document.removeEventListener("keydown", headerHelpKeys, true)
+      // the chip that opened it may have been re-rendered meanwhile: return to its successor
+      const back = _helpReturnFocus?.isConnected ? _helpReturnFocus
+        : document.querySelector(`#gameMeta [data-help="${m.dataset.help}"]`)
+      try { back?.focus({ preventScroll: true }) } catch(e){}
+      _helpReturnFocus = null
+    }
+    function headerHelpKeys(e){
+      // the feedback widget sits above this modal; leave Escape to it while it is open
+      if(e.key === "Escape" && !document.querySelector(".kfw-backdrop")){ e.stopPropagation(); closeHeaderHelp() }
+    }
+    function headerHelpModal(){
+      let m = document.getElementById("kxHelp")
+      if(m) return m
+      m = document.createElement("div")
+      m.id = "kxHelp"
+      m.className = "kx-help hidden"
+      m.innerHTML = `
+        <div class="kx-help-card" role="dialog" aria-modal="true" aria-labelledby="kxHelpTitle">
+          <div class="kx-help-head">
+            <h2 id="kxHelpTitle"></h2>
+            <button type="button" class="kx-help-x" aria-label="Close">×</button>
+          </div>
+          <div id="kxHelpBody">
+            <p class="kx-help-what"></p>
+            <div class="kx-help-now"><div class="kx-help-tag">This circle</div><div class="kx-help-phrase"></div><p class="kx-help-text"></p></div>
+            <div class="kx-help-others"><div class="kx-help-tag">Other options</div><ul></ul></div>
+          </div>
+          <div class="kx-help-foot"><div class="kx-help-kfb"></div><button type="button" class="kx-help-ok">OK</button></div>
+        </div>`
+      m.addEventListener("click", e => {
+        if(e.target === m || e.target.closest(".kx-help-x, .kx-help-ok")) closeHeaderHelp()
+      })
+      document.body.appendChild(m)
+      return m
+    }
+    function openHeaderHelp(key, fromEl){
+      const h = headerHelp[key]
+      if(!h) return
+      const v = headerHelpValue(key)
+      const pick = h.pick ? h.pick(v) : String(v)
+      const opt = h.options.find(o => o[0] === pick)
+      const cur = (h.current && h.current(v)) || null
+      const phrase = cur?.[0] || opt?.[1] || String(v ?? "")
+      const text = cur?.[1] || opt?.[2] || ""
+
+      const m = headerHelpModal()
+      m.dataset.help = key
+      m.querySelector("#kxHelpTitle").textContent = h.name
+      m.querySelector(".kx-help-what").textContent = h.what
+      const ph = m.querySelector(".kx-help-phrase")
+      ph.textContent = phrase
+      ph.className = "kx-help-phrase" + (key === "network" ? " is-net" : "")
+      m.querySelector(".kx-help-text").textContent = text
+      m.querySelector(".kx-help-text").hidden = !text
+      const ul = m.querySelector(".kx-help-others ul")
+      ul.replaceChildren(...h.options.filter(o => o[0] !== pick).map(([, p, t]) => {
+        const li = document.createElement("li")
+        const b = document.createElement("b"); b.textContent = p
+        li.append(b, document.createTextNode(" " + t))
+        return li
+      }))
+      m.querySelector(".kx-help-others").hidden = !ul.children.length
+
+      // 👍 👎 💬 — the same control as the learn page and the change notes (kfeedbits.js). A new
+      // host each time: kfeedbits renders a host once, and the vote is filed per setting + value.
+      const slot = m.querySelector(".kx-help-kfb")
+      slot.replaceChildren()
+      if(window.kfeedbits?.render){
+        const kfb = document.createElement("div")
+        kfb.setAttribute("data-kfb", `hdrhelp-${key}-${pick}`)
+        kfb.setAttribute("data-kfb-scope", "section")
+        kfb.setAttribute("data-kfb-label", `Header help · ${h.name}: ${phrase}`)
+        kfb.setAttribute("data-kfb-target", "#kxHelpBody")
+        slot.appendChild(kfb)
+        try { window.kfeedbits.render(kfb) } catch(e){ kfb.remove() }
+      }
+
+      _helpReturnFocus = fromEl || null
+      m.classList.remove("hidden")
+      document.addEventListener("keydown", headerHelpKeys, true)
+      m.querySelector(".kx-help-ok").focus({ preventScroll: true })
+    }
+    window.katomiaHeaderHelp = { open: openHeaderHelp, close: closeHeaderHelp, topics: () => Object.keys(headerHelp) }
 
     function renderConfigMeta(config){
       if(!config) return ""
@@ -1342,11 +1533,10 @@ function getFastThumb(url, imgEl){
 
       return entries
         .map(([k, v]) => {
-          const title = configTitles[k] || humanKey(k)
-          if(configFormats[k]) return metaChip(configFormats[k](v), title)
-          if(metaPhrases[k]?.[v]) return metaChip(metaPhrases[k][v], title)
+          if(configFormats[k]) return metaChip(configFormats[k](v), k)
+          if(metaPhrases[k]?.[v]) return metaChip(metaPhrases[k][v], k)
           const shown = displayLookup[k] ? displayValue(k, v) : v
-          return metaChip(`${humanKey(k)}: ${shown}`, title)
+          return metaChip(`${humanKey(k)}: ${shown}`, k)
         })
         .join("")
     }
@@ -1429,29 +1619,37 @@ function getFastThumb(url, imgEl){
 
       if(token !== _mainRenderToken) return
 
-      // GAME-HEADER2: network tag + title, one row of phrase chips (trading mode first), and the
-      // id with the admin tools on a quiet line underneath.
-      // chips = how this circle trades; the quiet line = who can see and join it, and its id
+      // GAME-HEADER2 + HEADER-HELP1: the title gets the full width; then one row of chips for how
+      // the circle trades, led by its network (an attribute like the rest, owner 2026-11-09), and
+      // a row of lighter chips for who can see and join it; the id and admin tools underneath.
       const joinChip = !joinText ? ""
-        : gameMeta.joinRule === "*" ? metaFact("🙌 Anyone can join", "Join rule")
-        : metaFact(`Join: ${joinText}`, "Join rule")
+        : metaChip(gameMeta.joinRule === "*" ? "🙌 Anyone can join" : `Join: ${joinText}`, "joinRule", "meta-soft")
       gameMetaEl.innerHTML = `
-        <div class="game-title-row">
-          <span class="game-network">${gameMeta.network}</span>
-          <h1 class="game-title">${title}</h1>
-        </div>
+        <h1 class="game-title">${title}</h1>
 
         <div class="game-meta-row">
+          ${metaChip(escapeAttr(gameMeta.network || ""), "network", "meta-net")}
           ${renderConfigMeta(gameMeta.config)}
         </div>
 
-        <div class="game-id-row">
-          ${metaFact(metaPhrases.visibility[gameMeta.visibility] || displayValue("visibility", gameMeta.visibility), "Visibility")}
+        <div class="game-meta-row game-access-row">
+          ${metaChip(metaPhrases.visibility[gameMeta.visibility] || displayValue("visibility", gameMeta.visibility), "visibility", "meta-soft")}
           ${joinChip}
-          ${metaFact(metaPhrases.lockRule[gameMeta.lockRule] || ("Lock: " + displayValue("lockRule", gameMeta.lockRule)), "Lock rule")}
+          ${metaChip(metaPhrases.lockRule[gameMeta.lockRule] || ("Lock: " + displayValue("lockRule", gameMeta.lockRule)), "lockRule", "meta-soft")}
+        </div>
+
+        <div class="game-id-row">
           <span class="game-id">ID <code>${gameMeta.id}</code></span> ${adminTools}
         </div>
       `
+      // one delegated listener: the header is rebuilt on every render
+      if(!gameMetaEl.dataset.helpWired){
+        gameMetaEl.dataset.helpWired = "1"
+        gameMetaEl.addEventListener("click", e => {
+          const chip = e.target.closest?.("[data-help]")
+          if(chip && gameMetaEl.contains(chip)) openHeaderHelp(chip.dataset.help, chip)
+        })
+      }
 
       document.getElementById("deleteGameBtn")?.addEventListener("click", deleteCurrentGame)
     }

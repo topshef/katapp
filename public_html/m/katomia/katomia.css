@@ -947,17 +947,13 @@ body[data-view-mode="columns"] .exit-game-btn{
 }
 
 
-/* GAME-HEADER2 (owner 2026-11-09: "smarten up that header … certainly on mobile").
-   A small network tag beside a title sized for phones; one row of phrase chips; the id and
-   admin tools on a quiet line underneath. Same look on every width — the chips just wrap. */
+/* GAME-HEADER2 + HEADER-HELP1 (owner 2026-11-09: "smarten up that header … certainly on mobile";
+   then "testnet is kind of an attribute, just like public … allow the title to be the full width").
+   Title on its own; a row of chips for how the circle trades, led by the network; a row of
+   outlined chips for who can see and join it; the id and admin tools quiet underneath. Every
+   chip with an explainer is a button (see headerHelp in katomia-render.js). */
 .game-meta{
   margin-bottom:12px;
-}
-
-.game-title-row{
-  display:flex;
-  align-items:flex-start;
-  gap:8px;
 }
 
 .game-title{
@@ -969,24 +965,6 @@ body[data-view-mode="columns"] .exit-game-btn{
   text-wrap:balance;
 }
 
-/* network badge */
-.game-network{
-  flex:none;
-  margin-top:3px;
-  font-size:11px;
-  font-weight:700;
-  text-transform:uppercase;
-  letter-spacing:.05em;
-  padding:3px 8px;
-  border-radius:999px;
-  display:inline-flex;
-  align-items:center;
-  background: var(--network-color);
-  color:#fff;
-  line-height:1.3;
-}
-
-/* phrase chips */
 .game-meta-row{
   margin-top:8px;
   display:flex;
@@ -995,18 +973,42 @@ body[data-view-mode="columns"] .exit-game-btn{
   font-size:12.5px;
   color:#4b5563;
 }
+.game-meta-row.game-access-row{ margin-top:6px; }
 .game-meta-row .meta-chip{
   display:inline-flex;
   align-items:center;
   gap:4px;
   padding:3px 9px;
   background:#eceef2;
+  border:0;
   border-radius:999px;
   white-space:nowrap;
   line-height:1.4;
+  font:inherit;
+  color:inherit;
+  margin:0;
 }
+.game-meta-row button.meta-chip{ cursor:pointer; -webkit-tap-highlight-color:transparent; }
+.game-meta-row button.meta-chip:hover{ background:#e2e5ea; }
+.game-meta-row button.meta-chip:focus-visible{ outline:2px solid #2f6fed; outline-offset:1px; }
+/* the network leads the trading row, in its own colour */
+.game-meta-row .meta-chip.meta-net{
+  background:var(--network-color);
+  color:#fff;
+  font-weight:700;
+  font-size:10.5px;
+  letter-spacing:.05em;
+  text-transform:uppercase;
+}
+.game-meta-row button.meta-chip.meta-net:hover{ filter:brightness(1.07); background:var(--network-color); }
+/* who can see and join: same chip, outlined, a step quieter */
+.game-meta-row .meta-chip.meta-soft{
+  background:transparent;
+  box-shadow:inset 0 0 0 1px #dde1e7;
+  color:#5f6672;
+}
+.game-meta-row button.meta-chip.meta-soft:hover{ background:#f1f3f6; }
 
-/* access facts + id + admin tools, quiet, dot-separated */
 .game-id-row{
   margin-top:7px;
   display:flex;
@@ -1016,14 +1018,9 @@ body[data-view-mode="columns"] .exit-game-btn{
   font-size:12px;
   color:#8a919c;
 }
-.game-id-row .meta-fact + .meta-fact::before,
-.game-id-row .meta-fact + .game-id::before{ content:"·"; margin-right:10px; color:#c3c8cf; }
 @media (max-width:560px){
   .game-meta-row{ gap:5px; font-size:12px; }
   .game-meta-row .meta-chip{ padding:2px 8px; }
-  /* the id gets its own line on phones, without a separator dot left dangling at its start */
-  .game-id-row .game-id{ flex-basis:100%; }
-  .game-id-row .meta-fact + .game-id::before{ content:none; }
 }
 .game-id-row code{
   font-size:11.5px;
@@ -1031,6 +1028,59 @@ body[data-view-mode="columns"] .exit-game-btn{
   padding:0;
   color:#7b8390;
 }
+
+/* HEADER-HELP1: the chip explainer. Sits above the page, below the feedback widget
+   (.kfw-backdrop, z-index 999998), so 💬 opens over it and comes back to it. */
+.kx-help{
+  position:fixed; inset:0; z-index:10000;
+  background:rgba(20,24,31,.42);
+  display:flex; align-items:center; justify-content:center;
+  padding:16px;
+}
+.kx-help.hidden{ display:none; }
+.kx-help-card{
+  width:min(440px, 100%);
+  max-height:calc(100dvh - 32px);
+  overflow:auto;
+  background:#fff;
+  border-radius:16px;
+  box-shadow:0 18px 50px rgba(0,0,0,.25);
+  padding:16px 18px 14px;
+  color:#2b2f36;
+  font-size:14.5px;
+  line-height:1.45;
+}
+.kx-help-head{ display:flex; align-items:flex-start; justify-content:space-between; gap:12px; }
+.kx-help-head h2{ margin:2px 0 0; font-size:17px; line-height:1.3; }
+.kx-help-x{ flex:none; border:0; background:none; font-size:22px; line-height:1; color:#8a919c; cursor:pointer; padding:2px 4px; margin:-4px -6px 0 0; }
+.kx-help-what{ margin:6px 0 12px; color:#4b5563; }
+.kx-help-tag{ font-size:11px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; color:#8a919c; margin-bottom:4px; }
+.kx-help-now{ background:#f2f6ff; border:1px solid #d6e2fb; border-radius:12px; padding:10px 12px; }
+.kx-help-phrase{ font-weight:700; font-size:15px; }
+.kx-help-phrase.is-net{
+  display:inline-block; background:var(--network-color); color:#fff;
+  font-size:11.5px; letter-spacing:.05em; padding:2px 9px; border-radius:999px;
+}
+.kx-help-text{ margin:4px 0 0; color:#374151; }
+.kx-help-others{ margin-top:12px; }
+.kx-help-others ul{ margin:0; padding:0; list-style:none; }
+.kx-help-others li{ padding:7px 0; border-top:1px solid #eef0f3; color:#6b7280; font-size:13.5px; }
+.kx-help-others li:first-child{ border-top:0; padding-top:2px; }
+.kx-help-others li b{ color:#4b5563; font-weight:600; }
+.kx-help-foot{ margin-top:14px; display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; }
+.kx-help-ok{
+  margin-left:auto; border:0; border-radius:10px; background:#2f6fed; color:#fff;
+  font:600 14.5px/1 system-ui, -apple-system, sans-serif; padding:10px 22px; cursor:pointer;
+}
+/* kfeedbits inside the explainer (its own styles live with the pages that use it) */
+.kx-help .kfb{ display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+.kx-help .kfb-lead{ font-size:13px; color:#6b7482; margin-right:2px; }
+.kx-help .kfb-btn{ border:1px solid #dde3ec; background:#fff; border-radius:999px; cursor:pointer; line-height:1; padding:5px 10px; font-size:14px; }
+.kx-help .kfb-btn:hover{ border-color:#2f6fed; }
+.kx-help .kfb-btn.on{ border-color:#2f6fed; background:#eaf1fe; }
+.kx-help .kfb-btn:disabled{ opacity:.5; cursor:default; }
+.kx-help .kfb-msg{ font-size:12.5px; color:#2f6fed; }
+.kx-help .kfb-msg-warn{ color:#b4690e; }
 
 /* default */
 body{
@@ -3638,3 +3688,6 @@ body[data-chip-shape="tall"] .asset .chip-amt{ font-size:.78em; opacity:.7; font
    katomiaAudienceHtml renders it on Home's rows and the Circles cards */
 .katomia-aud{ display:inline-flex; gap:7px; color:#555; }
 .katomia-aud-bit{ white-space:nowrap; }
+/* white on the playnet yellow is hard to read: dark ink there */
+body[data-network="playnet"] .game-meta-row .meta-chip.meta-net,
+body[data-network="playnet"] .kx-help-phrase.is-net{ color:#3d3000; }
