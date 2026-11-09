@@ -874,6 +874,7 @@ async function renderTransactions(){
   // Persist pending txs for post-settlement history, but OFF the render path —
   // getAllTx() already unions live pending, so display never waits on a write.
   cachePendingTxs()
+  cacheRecentTxs()   // RECENT-TRADES2: keep the server's recent settles locally, off the render path
 
   const txs = await getAllTx()
 
@@ -937,9 +938,14 @@ async function renderTransactions(){
   // ORDER-UIPASS1 slice 2: per-pair trade stats feed the market header — txs is
   // newest-first, so the first settled rate seen is "last" and the running
   // assignment leaves "first" at the session's oldest. Header re-renders after.
+  // RECENT-TRADES2: with history kept locally for days, "trades" and the change figure would
+  // drift into "all time" — measure both over the last 24 hours.
   const stats = {}
+  const since24h = Date.now() / 1000 - 86400
   for(const tx of txs){
     if(!isTxSuccessStatus(getTxStatus(tx))) continue
+    const startS = getTxStartSeconds(tx)
+    if(startS && startS < since24h) continue
     const pair = getTxPair(tx)
     if(!pair) continue
     const rate = computeTxRate(tx)
@@ -1998,12 +2004,12 @@ function renderOrderMarketSummary(){
     }
     if(stats.last) hdr.appendChild(kv(formatRate(stats.last), "last", "market-kv--last"))
     if(chg !== null && isFinite(chg))
-      hdr.appendChild(kv((chg >= 0 ? "▲ +" : "▼ ") + chg.toFixed(1) + "%", "session", chg >= 0 ? "market-kv--up" : "market-kv--down"))
+      hdr.appendChild(kv((chg >= 0 ? "▲ +" : "▼ ") + chg.toFixed(1) + "%", "24h", chg >= 0 ? "market-kv--up" : "market-kv--down"))
     if(bid !== null || ask !== null)
       hdr.appendChild(kv(`${bid !== null ? formatRate(bid) : "—"} / ${ask !== null ? formatRate(ask) : "—"}`, "bid / ask"))
     if(spread !== null && isFinite(spread) && spread >= 0)
       hdr.appendChild(kv(spread.toFixed(1) + "%", "spread"))
-    hdr.appendChild(kv(String(stats.count || 0), "trades"))
+    hdr.appendChild(kv(String(stats.count || 0), "trades 24h"))
     hdr.appendChild(kv(String(myOpen), "my orders"))
 
     const newBtn = document.createElement("button")

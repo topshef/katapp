@@ -321,3 +321,56 @@ async function cachePendingTxs(){
     txs.map(tx => saveTx(tx))
   )
 }
+
+
+// RECENT-TRADES2 (owner 2026-11-09: "can frontend remember trades longer — I think they drop
+// off once backend gone"). Every settled deal the server lists in state.tx.recent is kept in
+// this browser's own store, so the history here outlives the server's short list. A copy this
+// browser stored while the deal was pending takes the settled verdict. Never throws.
+const _recentSaved = new Set()
+async function cacheRecentTxs(){
+  const db = txStore()
+  if(!db) return
+  for(const tx of txArray(state?.tx?.recent)){
+    const key = txKey(tx)
+    if(_recentSaved.has(key)) continue
+    _recentSaved.add(key)
+    try{
+      const existing = await db.collection(TX_COLLECTION).doc(key).get()
+      if(!existing) await db.collection(TX_COLLECTION).add({ ...tx, gameId: txGameScope(tx) }, key)
+      else if(String(existing.lifecycle?.status || "").toUpperCase() !== "SUCCESS")
+        await db.collection(TX_COLLECTION).doc(key).update({ lifecycle: tx.lifecycle })
+    }
+    catch(err){ console.warn("[katomia-localdb] cacheRecentTxs failed", key, err) }
+  }
+  pruneStoredTxs()
+}
+
+// The store would otherwise grow forever on a busy book (~50 settles an hour). Keep the newest
+// TX_KEEP_PER_GAME per circle; runs once per page load, after the first recent save.
+const TX_KEEP_PER_GAME = 500
+let _pruned = false
+async function pruneStoredTxs(){
+  if(_pruned) return
+  _pruned = true
+  const db = txStore()
+  if(!db) return
+  try{
+    const rows = (await db.collection(TX_COLLECTION).get({ keys: true })) || []
+    const secs = tx => Number(String(tx?.txid || "").split("@")[1]?.split(".")[0]) || Math.floor((tx?.settledAt || 0) / 1000)
+    const byGame = new Map()
+    for(const r of rows){
+      const g = txGameScope(r.data)
+      if(!byGame.has(g)) byGame.set(g, [])
+      byGame.get(g).push(r)
+    }
+    for(const list of byGame.values()){
+      if(list.length <= TX_KEEP_PER_GAME) continue
+      list.sort((a, b) => secs(b.data) - secs(a.data))
+      for(const r of list.slice(TX_KEEP_PER_GAME)){
+        try{ await db.collection(TX_COLLECTION).doc(r.key).delete() } catch{}
+      }
+    }
+  }
+  catch(err){ console.warn("[katomia-localdb] prune failed", err) }
+}
