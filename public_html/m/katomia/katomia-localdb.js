@@ -269,6 +269,7 @@ function settledTxStubs(){
 async function getAllTx(){
 
   await migrateLegacyTxs()
+  backfillSettledTxs()   // TX-BACKFILL1: once per page load, does not block this render
 
   const currentGameId = gameMeta?.id || gameId
   const byKey = new Map()
@@ -278,29 +279,30 @@ async function getAllTx(){
     byKey.set(txKey(tx), tx)
   }
 
-  // Confirmed txs rebuilt from durable order state. A tx can settle and leave
-  // state.tx.pending before this client ever cached it (playnet resolves
-  // synchronously, so the tx is never broadcast as pending; a slow first render
-  // can also miss a fast mainnet tx). order.settled is logic state the server
-  // always sends, so any settled (txid,pch) we do not already hold is surfaced
-  // here as a minimal record. The server no longer keeps a recently-confirmed
-  // list M-bM-^@M-^T that job now lives entirely on the front end.
-  for(const tx of settledTxStubs()){
-    const k = txKey(tx)
-    if(byKey.has(k)) continue   // a stored/pending copy already carries full detail
-    byKey.set(k, tx)
-  }
-
-  // RECENT-TRADES1 (owner 2026-11-09: "when I join I don't see recent activity"). The server
-  // now sends its last ~30 settled deals for this circle (state.tx.recent). Without them a page
-  // opened in a lull knew only what it had watched itself and read "0 trades" on a live book.
-  // A stored copy keeps its detail but takes the settled verdict, so a deal this browser saw
-  // struck and then lost sight of no longer reads as pending or expired.
-  for(const tx of txArray(state?.tx?.recent)){
+  // RECENT-TRADES1 / TX-BACKFILL1: FULL settled records — the server's recent list (socket,
+  // newest 30) and the older ones fetched once from GET …/game/:id/trades (up to 200). A stored
+  // copy keeps its detail but takes the settled verdict. These run BEFORE the stubs below:
+  // TXLIST-FLIP1 (owner 2026-11-09, two screenshots: "it showed fewer line items, then flipped
+  // back to the longer one"). The stubs used to be added first, and a full record then only
+  // copied its verdict onto the stub — so a deal showed just my own legs (the stub knows only
+  // my order's bundle) until a later render read the full copy back from the browser store.
+  for(const tx of [...txArray(state?.tx?.recent), ..._backfilled]){
     if(currentGameId && txGameScope(tx) !== currentGameId) continue
     const k = txKey(tx)
     const have = byKey.get(k)
     byKey.set(k, have ? { ...have, lifecycle: tx.lifecycle } : tx)
+  }
+
+  // Confirmed txs rebuilt from durable order state, ONLY for deals no full record covers (older
+  // than the server's list and never seen by this browser). A stub knows just the order's own
+  // bundle, so it shows one side; held back until the backfill has answered (≤3 s) so the list
+  // does not draw a partial picture and then redraw it.
+  if(_backfillDone){
+    for(const tx of settledTxStubs()){
+      const k = txKey(tx)
+      if(byKey.has(k)) continue   // a full record already carries the detail
+      byKey.set(k, tx)
+    }
   }
 
   // Live pending overrides any stale stored copy of the same tx.
@@ -310,6 +312,39 @@ async function getAllTx(){
   }
 
   return [...byKey.values()]
+}
+
+// TX-BACKFILL1 (owner 2026-11-09: "I assume the API can do it rather than load the websocket").
+// The socket sends only the newest 30 settled deals; the backend keeps 200 per circle behind
+// GET /katomia/game/:id/trades. Fetch them once per page load, keep them in memory for
+// getAllTx and save them to this browser's store, then redraw the list once.
+let _backfilled = []
+let _backfillDone = false
+let _backfillStarted = false
+function backfillSettledTxs(){
+  if(_backfillStarted) return
+  _backfillStarted = true
+  const id = gameMeta?.id || gameId
+  const base = (typeof window !== "undefined" && window.KAPI) || "/hapi/katomia"
+  const finish = () => {
+    if(_backfillDone) return
+    _backfillDone = true
+    try{ if(typeof renderTransactions === "function") renderTransactions() }catch{}
+  }
+  setTimeout(finish, 3000)   // never hold the stubs back longer than this
+  if(!id){ finish(); return }
+  ;(async () => {
+    try{
+      const r = await fetch(`${base}/game/${encodeURIComponent(id)}/trades?limit=200`, { cache: "no-store" })
+      if(r.ok){
+        const j = await r.json()
+        _backfilled = txArray(j?.trades).map(({ settledAtIso, hashscan, ...rec }) => rec)
+        cacheSettledList(_backfilled)
+      }
+    }
+    catch(err){ console.warn("[katomia-localdb] trades backfill failed", err) }
+    finally{ finish() }
+  })()
 }
 
 
@@ -328,10 +363,11 @@ async function cachePendingTxs(){
 // this browser's own store, so the history here outlives the server's short list. A copy this
 // browser stored while the deal was pending takes the settled verdict. Never throws.
 const _recentSaved = new Set()
-async function cacheRecentTxs(){
+async function cacheRecentTxs(){ return cacheSettledList(txArray(state?.tx?.recent)) }
+async function cacheSettledList(list){
   const db = txStore()
   if(!db) return
-  for(const tx of txArray(state?.tx?.recent)){
+  for(const tx of list){
     const key = txKey(tx)
     if(_recentSaved.has(key)) continue
     _recentSaved.add(key)
