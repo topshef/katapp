@@ -89,9 +89,33 @@
         terms: (window.KTERMS && window.KTERMS.one) || null
       }
     };
+    // KFB-SIGN1 (owner 2026-11-09: "hopefully it's authenticated"): a thumb carries the same
+    // identity a written comment does. The feedback widget signs {message, url, ts} with the
+    // page's Katomia player key and sends the player token; a vote now does exactly that, so
+    // the inbox shows signatureValid and the key for votes too. Best effort: a page without
+    // the key still votes, unsigned, as before.
+    var headers = { "Content-Type": "application/json" };
+    try {
+      if (typeof getOrCreatePlayerToken === "function") {
+        var tok = getOrCreatePlayerToken();
+        if (tok) headers["x-player-token"] = tok;
+      }
+    } catch (e) {}
+    try {
+      if (typeof getOrCreatePlayerKeypair === "function" && window.crypto && crypto.subtle) {
+        var kp = await getOrCreatePlayerKeypair();
+        var payload = { message: body.message, url: body.context.url, ts: new Date().toISOString() };
+        var raw = await crypto.subtle.sign("Ed25519", kp.privateKey, new TextEncoder().encode(JSON.stringify(payload)));
+        var x = atob(kp.publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"));
+        var hex = "";
+        for (var i = 0; i < x.length; i++) hex += x.charCodeAt(i).toString(16).padStart(2, "0");
+        body.signature = { alg: "Ed25519", sig: btoa(String.fromCharCode.apply(null, new Uint8Array(raw))), pubkeyHex: hex };
+        body.signaturePayload = payload;
+      }
+    } catch (e) { console.warn("[kfeedbits] vote not signed", e); }
     var res = await fetch(apiUrl(), {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: headers,
       body: JSON.stringify(body)
     });
     if (!res.ok) throw new Error("HTTP " + res.status);

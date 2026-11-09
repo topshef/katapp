@@ -1350,71 +1350,94 @@ function getFastThumb(url, imgEl){
     // options: [key, phrase, explanation]. pick(value) names the option this circle uses;
     // current(value) overrides the highlighted box when the exact value matters (durations).
     const joinPick = v => v === "*" ? "*" : (v && typeof v === "object" && !Array.isArray(v)) ? v.rule : "members"
+    // HEADER-HELP2 (owner's feedback on the explainers, 2026-11-09 13:24–13:33Z, records df30bb5c,
+    // c93d0214, acc7243f, 63961844, cbceac91): an order book is not a circle ("order book mode
+    // doesn't really create a circle"), so the explainers name the place by its mode.
+    const isBook = () => gameMeta?.config?.tradingMode === "orderBook"
+    const place = () => isBook() ? "market" : (window.KTERMS?.one || "circle")
     const headerHelp = {
       network: {
-        name: "Network", what: "Which Hedera network this circle settles on.",
+        // not "which Hedera network": playnet is no network at all, and others may come later
+        name: "Network", what: () => `Which network this ${place()} settles on.`,
         options: [
-          ["testnet", "TESTNET", "Hedera's test network. Its HBAR and tokens have no real value, so it is the place to learn and try things out."],
-          ["mainnet", "MAINNET", "Hedera's main network. Real HBAR and real tokens: once a deal settles, it is final."],
-          ["playnet", "PLAYNET", "No chain at all. Deals are pretend: nothing is signed or sent to Hedera."],
+          ["testnet", "TESTNET", "Hedera testnet. Its HBAR and tokens have no real value, so it is the place to learn and try things out."],
+          ["mainnet", "MAINNET", "Hedera mainnet. Real HBAR and real tokens: once a deal settles, it is final."],
+          ["playnet", "PLAYNET", "No network at all. Deals are pretend: nothing is signed or sent anywhere."],
         ],
+        note: () => "Katomia runs on Hedera today. Other networks may be added later.",
       },
       tradingMode: {
-        name: "Trading mode", what: "How offers are made and matched in this circle.",
+        // two ways of trading, almost two apps on one engine; neither explanation leans on "circle"
+        name: "Trading mode", what: () => "How trading works here. The two modes are different ways to trade, almost separate apps that share one engine.",
         options: [
-          ["orderBook", "📊 Order book", "People post orders to buy or sell at a price. When a buy and a sell cross, they are matched and struck as one deal."],
-          ["proposal", "💡 Proposal", "People put things in each other's baskets. When everyone involved agrees, it all swaps at once, as one deal."],
-          ["debug", "🛠️ Debug", "A mode for testing the app itself; things may behave oddly."],
+          ["orderBook", "📊 Order book", "Traditional trading. You trade against the book: post an order to buy or sell at a price, and when a buy and a sell meet, they are matched and settle as one deal."],
+          ["proposal", "💡 Proposal", "Trading by agreement. People put what they offer in each other's baskets, and nothing moves until everyone involved agrees. Then it all swaps at once, as one deal."],
+          ["debug", "🛠️ Debug", "For testing the app itself; things may behave oddly."],
         ],
       },
       txDelaySeconds: {
+        // owner: a delay can be any length (it sets the transaction's start time), and a later
+        // start is an option to settle, not a promise. katomia.js: startseconds = now + txDelaySeconds.
         name: "Strike timing",
-        what: "When a deal is struck: turned into one transaction for everyone in it to sign.",
+        what: () => "A deal is struck as soon as it is agreed: it becomes one transaction for everyone in it to sign. This sets when that transaction starts: straight away, or at a set time later.",
         pick: v => Number(v) === 0 ? "0" : "delay",
         current: v => Number(v) === 0 ? null
-          : [configFormats.txDelaySeconds(v), `Once a deal is agreed, this circle waits ${fmtDuration(v)} before striking it, so there is time to look again.`],
+          : [configFormats.txDelaySeconds(v), `Transactions here start ${fmtDuration(v)} after the deal is struck.`],
         options: [
-          ["0", "⚡ Strikes immediately", "The deal is struck the moment it is agreed."],
-          ["delay", "⏱ Strikes after a delay", "The circle waits a set time after a deal is agreed, from seconds to a day, before striking it."],
+          ["0", "⚡ Strikes immediately", "The transaction can go through straight away."],
+          ["delay", "⏱ Strikes after a delay", "The transaction starts later, by any amount: minutes, days, even years. It is set in seconds."],
         ],
+        note: () => "A later start is an option to settle, not a promise. When the time comes, everything must still be in place, such as the balances and the signatures, or the transaction fails and nothing moves. The same is true of any future-dated or scheduled transaction.",
       },
       validDurationSeconds: {
+        // Hedera's legal range is 15–180 s, SDK default 120 (docs.hedera.com, transaction
+        // properties; katomia.js clamps to the same range after a 5 s test was refused on-chain
+        // with INVALID_TRANSACTION_DURATION). Owner: show the minimum, for bots and auto-signers.
         name: "Signing window",
-        what: "Once a deal is struck, everyone in it signs one Hedera transaction. Hedera accepts the signatures only inside this window. If anyone is too late, the transaction expires and nothing moves.",
-        current: v => [configFormats.validDurationSeconds(v), `Everyone in a deal has ${fmtDuration(v)} from the strike to sign.`],
+        what: () => "Everyone in a deal signs one Hedera transaction. Hedera accepts it only inside this window, counted from the transaction's start time. If it is not fully signed by the end, it expires and nothing moves.",
+        current: v => [configFormats.validDurationSeconds(v),
+          Number(gameMeta?.config?.txDelaySeconds || 0) === 0
+            ? `Everyone in a deal has ${fmtDuration(v)} from the strike to sign.`
+            : `The transaction can go through for ${fmtDuration(v)} from its start time.`],
         options: [
-          ["30", "⏳ Valid for 30 seconds", "Short. Suits bots and quick traders; someone still opening a wallet may miss it."],
+          ["15", "⏳ Valid for 15 seconds", "The shortest Hedera allows. Plenty for bots and auto-signing wallets, such as HashPack with dApp auto-approve on, or a Keaton signer. Too short for most people signing by hand."],
           ["60", "⏳ Valid for 60 seconds", "A minute. Enough for most people with their wallet to hand."],
           ["120", "⏳ Valid for 2 minutes", "Hedera's default."],
           ["180", "⏳ Valid for 3 minutes", "The longest Hedera allows."],
         ],
       },
       visibility: {
-        name: "Visibility", what: "Who can find this circle and look at it.",
+        name: "Visibility", what: () => `Who can find this ${place()} and look at it.`,
         options: [
-          ["public", "🌍 Public", "Listed with the other circles. Anyone can open it and watch."],
+          ["public", "🌍 Public", "Listed for everyone. Anyone can open it and watch."],
           ["unlisted", "🔗 Unlisted", "Not listed, but anyone with the link can open it."],
-          ["private", "🔒 Private", "Not listed, and closed to people outside it."],
+          ["private", "🔒 Private", "Not listed, and closed to outsiders."],
         ],
       },
       joinRule: {
-        name: "Who can join", what: "Who can take a seat and trade. Anyone who can open the circle can watch.",
+        name: "Who can join", what: () => "Who can take part and trade. Anyone who can open it can watch.",
         pick: joinPick,
         current: v => [v === "*" ? "🙌 Anyone can join" : `Join: ${formatJoinRule(v)}`, null],
         options: [
-          ["*", "🙌 Anyone can join", "Any account can take a seat."],
-          ["members", "🎟 Members", "Only listed accounts, or holders of a listed token, can join. Everyone else watches."],
-          ["accountGroup", "🔐 A named group", "Only accounts in a group the circle names (its admins, say) can join."],
-          ["accountIdRange", "🔐 An account range", "Only accounts whose ID falls in a set range can join."],
+          ["*", "🙌 Anyone can join", "Any account can take part."],
+          ["members", "🎟 Members", "Only listed accounts, or holders of a listed token, can take part. Everyone else watches."],
+          ["accountGroup", "🔐 A named group", "Only accounts in a named group, such as its admins."],
+          ["accountIdRange", "🔐 An account range", "Only accounts whose ID falls in a set range."],
         ],
       },
       lockRule: {
-        name: "Lock rule", what: "Who locks and settles together once a deal is agreed.",
+        // owner: in an order book the system locks, not the player, so the rule is internal there
+        // (katomia.js shouldAutoLock: tradingMode orderBook); in proposal circles locking is a
+        // player's own act of agreeing.
+        name: "Lock rule", what: () => "Who locks and settles together once a deal is agreed.",
         options: [
           ["cluster", "☆ Cluster lock", "Each group of people trading with each other locks and settles on its own; everyone else carries on."],
           ["active", "☆☆ Active lock", "Everyone with something in a basket locks together, and it all settles as one deal, so separate trades can depend on each other."],
-          ["all", "🌍 Lock all", "The whole circle locks and settles together, every account at once."],
+          ["all", "🌍 Lock all", "Everyone locks and settles together, every account at once."],
         ],
+        note: () => isBook()
+          ? "In an order book the system does the locking, not you: matched orders lock and settle on their own, so Cluster lock is the norm and this works behind the scenes. In proposal circles, locking is something players do: you lock to agree, and this rule decides who has to lock together."
+          : "Here locking is something players do: you lock to say you agree, and this rule decides who has to lock together before a deal is struck.",
       },
     }
     // the value a chip stands for, read from the circle at tap time (the header re-renders often)
@@ -1462,8 +1485,9 @@ function getFastThumb(url, imgEl){
           </div>
           <div id="kxHelpBody">
             <p class="kx-help-what"></p>
-            <div class="kx-help-now"><div class="kx-help-tag">This circle</div><div class="kx-help-phrase"></div><p class="kx-help-text"></p></div>
+            <div class="kx-help-now"><div class="kx-help-tag kx-help-here">This circle</div><div class="kx-help-phrase"></div><p class="kx-help-text"></p></div>
             <div class="kx-help-others"><div class="kx-help-tag">Other options</div><ul></ul></div>
+            <p class="kx-help-note"></p>
           </div>
           <div class="kx-help-foot"><div class="kx-help-kfb"></div><button type="button" class="kx-help-ok">OK</button></div>
         </div>`
@@ -1486,7 +1510,11 @@ function getFastThumb(url, imgEl){
       const m = headerHelpModal()
       m.dataset.help = key
       m.querySelector("#kxHelpTitle").textContent = h.name
-      m.querySelector(".kx-help-what").textContent = h.what
+      m.querySelector(".kx-help-what").textContent = typeof h.what === "function" ? h.what() : h.what
+      m.querySelector(".kx-help-here").textContent = `This ${place()}`
+      const note = h.note ? h.note(v) : ""
+      m.querySelector(".kx-help-note").textContent = note || ""
+      m.querySelector(".kx-help-note").hidden = !note
       const ph = m.querySelector(".kx-help-phrase")
       ph.textContent = phrase
       ph.className = "kx-help-phrase" + (key === "network" ? " is-net" : "")

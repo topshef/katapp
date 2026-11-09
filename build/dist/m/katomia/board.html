@@ -7,7 +7,7 @@
        ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
        fade-in before first paint). -->
   <script src="kfade.js?v=1793403648"></script>
-  <link rel="stylesheet" href="katomia.css?v=1794229791" />
+  <link rel="stylesheet" href="katomia.css?v=1794231726" />
 <link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794075795" />
   <title>katomia — board</title>
 </head>
@@ -903,7 +903,7 @@ window.katomiaNet = (() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1793403648" defer></script>
+<script src="kfeedbits.js?v=1794231735" defer></script>
 <script src="kchanges-log.js?v=1793992793" defer></script>
 <script src="kchanges.js?v=1793407665" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
@@ -1379,7 +1379,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "c8a518d"
+  window.KFLOW_COMMIT = "a128493"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1432,7 +1432,7 @@ window.katomiaNet = (() => {
      wc:version, and boardDirectSign()'s window.kdiag?.() calls were silent
      no-ops. Ring16 direct-sign attempts left zero trace in kdiag. -->
 <script src="katomia-modals.js?v=1794054611"></script>
-<script src="katomia-render.js?v=1794229767"></script>
+<script src="katomia-render.js?v=1794231726"></script>
 <!-- TXSTATUS-CONSOLIDATE1: the tx/wallet status controller. Must load BEFORE
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->

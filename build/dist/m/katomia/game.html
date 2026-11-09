@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-	<link rel="stylesheet" href="katomia.css?v=1794229791" />
+	<link rel="stylesheet" href="katomia.css?v=1794231726" />
 <link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
 
@@ -702,7 +702,7 @@ window.katomiaNet = (() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1793403648" defer></script>
+<script src="kfeedbits.js?v=1794231735" defer></script>
 <script src="kchanges-log.js?v=1793992793" defer></script>
 <script src="kchanges.js?v=1793407665" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
@@ -1473,7 +1473,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "c8a518d"
+  window.KFLOW_COMMIT = "a128493"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1509,7 +1509,7 @@ window.katomiaNet = (() => {
 <script src="katomia-enrich.js?v=1793992212"></script>
 <script src="katomia-network.js?v=1794132771"></script>
 <script src="katomia-modals.js?v=1794054611"></script>
-<script src="katomia-render.js?v=1794229767"></script>
+<script src="katomia-render.js?v=1794231726"></script>
 <!-- TXSTATUS-CONSOLIDATE1 S7: the tx/wallet status controller, so order-mode
      auto-sign reports through it (terminal dedup + settle window + a real
      user-visible surface) instead of kdiag-only. Must load BEFORE
