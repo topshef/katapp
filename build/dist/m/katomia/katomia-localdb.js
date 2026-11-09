@@ -291,6 +291,18 @@ async function getAllTx(){
     byKey.set(k, tx)
   }
 
+  // RECENT-TRADES1 (owner 2026-11-09: "when I join I don't see recent activity"). The server
+  // now sends its last ~30 settled deals for this circle (state.tx.recent). Without them a page
+  // opened in a lull knew only what it had watched itself and read "0 trades" on a live book.
+  // A stored copy keeps its detail but takes the settled verdict, so a deal this browser saw
+  // struck and then lost sight of no longer reads as pending or expired.
+  for(const tx of txArray(state?.tx?.recent)){
+    if(currentGameId && txGameScope(tx) !== currentGameId) continue
+    const k = txKey(tx)
+    const have = byKey.get(k)
+    byKey.set(k, have ? { ...have, lifecycle: tx.lifecycle } : tx)
+  }
+
   // Live pending overrides any stale stored copy of the same tx.
   for(const tx of txArray(state?.tx?.pending)){
     if(currentGameId && txGameScope(tx) !== currentGameId) continue
