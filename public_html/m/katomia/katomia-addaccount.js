@@ -183,7 +183,15 @@ async function chooseAddAcct(raw, src){
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ network: net, account: label })
     })
-    const data = await res.json()
+    // MIRROR-DOWN1 (owner 2026-11-09: "Couldn't load assets (Unexpected token 'e', "error code: 502"
+    // is not valid JSON)"). When Hedera's mirror is down the edge can answer with a plain-text error
+    // page, so read text first and say what happened instead of showing a JSON parse error.
+    const raw = await res.text()
+    let data = null
+    try { data = JSON.parse(raw) } catch(_){}
+    if(!data) throw new Error(res.status >= 500
+      ? `Hedera's ${net} mirror isn't answering (HTTP ${res.status}) — try again in a few minutes`
+      : `unexpected reply (HTTP ${res.status})`)
     if(!data.ok) throw new Error(data.error || "lookup failed")
     addAcctList = Object.keys(data.assets || {})
     addAcctSel = new Set(addAcctList)   // everything ticked — the fallback when nothing better is known
@@ -202,7 +210,7 @@ async function chooseAddAcct(raw, src){
     box.innerHTML = ""
     const msg = document.createElement("span")
     msg.className = "addacct-error"
-    msg.textContent = `Couldn't load assets (${String(e?.message || e)}) — `
+    msg.textContent = `Couldn't load assets: ${String(e?.message || e)} — `
     const retry = document.createElement("button")
     retry.type = "button"
     retry.className = "addacct-link"
