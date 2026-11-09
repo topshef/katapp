@@ -1308,25 +1308,46 @@ function getFastThumb(url, imgEl){
     // ├┬┘├┤ │││ ││├┤ ├┬┘  ║  │ ││││├┤ ││ ┬  ║║║├┤  │ ├─┤
     // ┴└─└─┘┘└┘─┴┘└─┘┴└─  ╚═╝└─┘┘└┘└  ┴└─┘  ╩ ╩└─┘ ┴ ┴ ┴
     // render Config Meta
+    // GAME-HEADER2 (owner 2026-11-09: "validDurationSeconds: 60 … we've got a templating system
+    // … something like 'Valid for 60 seconds' … and smarten up that header, certainly on mobile").
+    // Every chip reads as a short phrase; the setting's own name stays on hover (title).
+    // A setting with no phrase falls back to its name in words ("Idle account hours: 1") rather
+    // than the raw key.
+    const metaPhrases = {
+      tradingMode:          { orderBook: "📊 Order book", proposal: "💡 Proposal", debug: "🛠️ Debug" },
+      visibility:           { public: "🌍 Public", unlisted: "🔗 Unlisted", private: "🔒 Private" },
+      lockRule:             { cluster: "☆ Cluster lock", active: "☆☆ Active lock", all: "🌍 Lock all" },
+    }
+    const configFormats = {
+      txDelaySeconds:       v => Number(v) === 0 ? "⚡ Strikes immediately" : `⏱ Strikes after ${v} seconds`,
+      validDurationSeconds: v => `⏳ Valid for ${v} seconds`,
+    }
+    const configTitles = {
+      tradingMode: "Trading mode", txDelaySeconds: "Strike delay (txDelaySeconds)",
+      validDurationSeconds: "How long a struck transaction stays signable (validDurationSeconds)",
+    }
+    const humanKey = k => { const w = String(k).replace(/([a-z0-9])([A-Z])/g, "$1 $2").toLowerCase(); return w.charAt(0).toUpperCase() + w.slice(1) }
+    const metaChip = (text, title) => `<span class="meta-chip"${title ? ` title="${escapeAttr(title)}"` : ""}>${text}</span>`
+    const metaFact = (text, title) => `<span class="meta-fact"${title ? ` title="${escapeAttr(title)}"` : ""}>${text}</span>`
+    function escapeAttr(t){ return String(t).replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;") }
+
     function renderConfigMeta(config){
       if(!config) return ""
 
-      const formats = {
-        txDelaySeconds: "Strike in {} seconds",
-        tradingMode: "Trading mode: {}"
-      }
-
       const entries = Object.entries(config)
+        .filter(([, v]) => !(Array.isArray(v) || (v && typeof v === "object")))
       if(!entries.length) return ""
+      // trading mode leads: it is the one fact that changes how the page works
+      entries.sort(([a], [b]) => (b === "tradingMode") - (a === "tradingMode"))
 
       return entries
-        .map(([k,v]) => {
-          if(Array.isArray(v) || (v && typeof v === 'object')) return null
+        .map(([k, v]) => {
+          const title = configTitles[k] || humanKey(k)
+          if(configFormats[k]) return metaChip(configFormats[k](v), title)
+          if(metaPhrases[k]?.[v]) return metaChip(metaPhrases[k][v], title)
           const shown = displayLookup[k] ? displayValue(k, v) : v
-          if(formats[k]) return `<span class="meta-chip">${formats[k].replace("{}", shown)}</span>`
-          return `<span class="meta-chip">${k}: ${shown}</span>`
+          return metaChip(`${humanKey(k)}: ${shown}`, title)
         })
-        .filter(Boolean)
         .join("")
     }
           
@@ -1408,18 +1429,27 @@ function getFastThumb(url, imgEl){
 
       if(token !== _mainRenderToken) return
 
+      // GAME-HEADER2: network tag + title, one row of phrase chips (trading mode first), and the
+      // id with the admin tools on a quiet line underneath.
+      // chips = how this circle trades; the quiet line = who can see and join it, and its id
+      const joinChip = !joinText ? ""
+        : gameMeta.joinRule === "*" ? metaFact("🙌 Anyone can join", "Join rule")
+        : metaFact(`Join: ${joinText}`, "Join rule")
       gameMetaEl.innerHTML = `
         <div class="game-title-row">
-          <div class="game-network">${gameMeta.network}</div>
-          <div class="game-title">${title}</div>
+          <span class="game-network">${gameMeta.network}</span>
+          <h1 class="game-title">${title}</h1>
         </div>
 
         <div class="game-meta-row">
-          <span>ID: ${gameMeta.id} ${adminTools}</span>
-          <span class="meta-chip">Visibility: ${displayValue("visibility", gameMeta.visibility)}</span>
-          ${joinText ? `<span class="meta-chip">Join: ${joinText}</span>` : ""}
-          <span class="meta-chip">Lock: ${displayValue("lockRule", gameMeta.lockRule)}</span>
           ${renderConfigMeta(gameMeta.config)}
+        </div>
+
+        <div class="game-id-row">
+          ${metaFact(metaPhrases.visibility[gameMeta.visibility] || displayValue("visibility", gameMeta.visibility), "Visibility")}
+          ${joinChip}
+          ${metaFact(metaPhrases.lockRule[gameMeta.lockRule] || ("Lock: " + displayValue("lockRule", gameMeta.lockRule)), "Lock rule")}
+          <span class="game-id">ID <code>${gameMeta.id}</code></span> ${adminTools}
         </div>
       `
 
