@@ -5,6 +5,7 @@ import {
   HederaChainId,
 } from "@hashgraph/hedera-wallet-connect";
 import { Transaction, LedgerId } from "@hashgraph/sdk";
+import { deafDecision, shouldResend } from "./kwcDeaf.mjs";   // WC-DEAFSOCKET1 F1
 // import { createTransactionAlert } from "./dealPage.js";
 
 let dappConnector;
@@ -423,6 +424,41 @@ function _guardInFlight(label) {
   g.done = () => { g.settled = true; clearTimeout(g.lossTimer); _wcInFlight.delete(g) }
   _wcInFlight.add(g)
   return g
+}
+
+// ── WC-DEAFSOCKET1 F1 (owner go 2026-11-09) ──────────────────────────────────
+// A relay socket can stay OPEN but receive nothing (lab1, 2026-11-09 21:15–21:20Z: four signs
+// lost, every ping timed out, no disconnect event; WalletConnect's own stall detector runs only
+// under Node). Called when a sign's advisory ping fails. The rules (and why each guard exists)
+// are in kwcDeaf.mjs: visible page + relayer claiming connected + sign still in flight →
+// restart the transport once (page-wide cooldown); ping again; resend the SAME bytes once only
+// if the wallet answers. Never rejects, never shortens a sign; the resend's success resolves the
+// sign's race through `resolve`, its failure is only logged.
+let _deafLastAt = 0
+async function _deafRecover({ accountId, g, signer, transactionBytes, resolve }) {
+  const diag = (ev, d) => { try { window.kdiag?.("wc:deaf:" + ev, { accountId, ...d }) } catch {} }
+  try {
+    const relayer = dappConnector?.walletConnectClient?.core?.relayer
+    const visible = typeof document === "undefined" || document.visibilityState === "visible"
+    const decision = deafDecision({ settled: g.settled, connected: !!relayer?.connected, visible, sinceLastMs: Date.now() - _deafLastAt })
+    if (decision !== "restart") { if (decision !== "skip-settled") diag("skip", { reason: decision }); return }
+    _deafLastAt = Date.now()
+    const t0 = Date.now()
+    diag("restart", {})
+    try { await relayer.restartTransport() } catch (e) { diag("restart-fail", { error: String(e?.message || e) }); return }
+    if (g.settled) { diag("settled-during-restart", { ms: Date.now() - t0 }); return }
+    const ping2 = await pingSession()
+    diag("ping2", { ok: ping2.ok, ms: ping2.ms, reason: ping2.reason, restartMs: Date.now() - t0 })
+    if (!shouldResend({ settled: g.settled, ping2Ok: ping2.ok })) return
+    const tx2 = Transaction.fromBytes(transactionBytes)
+    if (!tx2.isFrozen()) await tx2.freezeWithSigner(signer)
+    diag("resend", { sinceRestartMs: Date.now() - t0 })
+    signer.signTransaction(tx2).then(
+      st => { diag("resend-answered", { sinceRestartMs: Date.now() - t0, settledAlready: g.settled }); resolve(st) },
+      e => diag("resend-error", { error: String(e?.message || e) }))
+  } catch (e) {
+    diag("error", { error: String(e?.message || e) })
+  }
 }
 
 // TXSTATUS-CONSOLIDATE1 S4: the external abort handle. A superseding Sign tap
@@ -1554,13 +1590,19 @@ async function signTxCoreV2 ({
     ? `KWC-TIMEOUT: no response from the wallet within the transaction's validity window (${Math.round(_capMs / 1000)}s) — this transaction can no longer land; if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.`
     : "KWC-TIMEOUT: no response from the wallet after 120s — if you approved, the link is stuck: open your wallet app, disconnect this site, then reconnect and try again.")), _capMs)
 
+  // WC-DEAFSOCKET1 F1: a failed advisory ping may now RECOVER a deaf link (restart the transport,
+  // ping again, resend once if the wallet answers) — it still never fails or shortens a sign.
+  // The resend's answer arrives through _deafResend, which only ever resolves (never rejects).
+  let _deafResolve
+  const _deafResend = new Promise(res => { _deafResolve = res })
   pingSession().then(ping => {
     try { window.kdiag?.("wc:session:ping", { ok: ping.ok, ms: ping.ms, reason: ping.reason, accountId, advisory: true }) } catch {}
+    if (!ping.ok) _deafRecover({ accountId, g, signer, transactionBytes, resolve: _deafResolve })
   }).catch(() => {})
 
   let signedTransaction
   try {
-    signedTransaction = await Promise.race([signer.signTransaction(transaction), g.promise])
+    signedTransaction = await Promise.race([signer.signTransaction(transaction), g.promise, _deafResend])
   } catch (e) {
     // R2b: self-heal instead of dead-ending. If the wallet says this session is gone
     // ("No matching key", "Record was recently deleted", "session topic doesn't
@@ -2000,6 +2042,7 @@ const exposeHeadlessAPI = () => {
     relayInfo: () => ({ ...relayHealth, inFlight: _wcInFlight.size }),
     cancelInFlight,                   // S4: abort in-flight sign requests (supersede/terminal)
     pingSession,                                                     // active-session round-trip check
+    qaRelayer: () => dappConnector?.walletConnectClient?.core?.relayer || null,   // WC-DEAFSOCKET1: QA (qa/wc-android) makes the link deaf through this
     // R2: advisory only — a ping timeout does NOT mean the session is dead. Mobile
     // wallets stop answering pings the moment they are backgrounded (see signTxCoreV2).
     resetWalletLink: resetWalletLinkCore,                            // wipe wc@2:* → forced fresh pairing
