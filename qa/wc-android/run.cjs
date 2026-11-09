@@ -20,6 +20,8 @@
 //                   answers a second ping, the request is re-sent — well inside a 30 s window
 //   6. hidden page  the same deafness on a HIDDEN page (a phone, wallet in front): F1 must not act
 //                   (no restart; R1/R2 broke phone signing by acting on failed pings)
+//   7. swallowed    deaf, and every message is acknowledged before it is dropped, so the relay never
+//                   redelivers: only F1's second ping + resend can bring the signature back
 //
 // What it cannot tell: whether Android hands hashpack:// to HashPack and HashPack answers. That
 // only a phone can say; the diag log does (wc:redirect, then board:sign:saved).
@@ -195,11 +197,18 @@ async function scenario(browser, cfg, name, { metadata, before, expect, desktop,
 // but every incoming wallet message (sign answers, ping answers) goes nowhere — until the next
 // reconnect, which is exactly what cured it live. Payloads are dropped at the relayer's
 // onProviderPayload (an own property shadows the class method its payload handler calls).
-const DEAFEN = () => {
+// mode 'drop': nothing is acknowledged, so the relay REDELIVERS after a reconnect (CI run 162
+// showed the restart alone then recovers the answer). mode 'ack': each message is acknowledged
+// and dropped — the relay thinks it was delivered and never sends it again, the worst case, which
+// only F1's resend can recover.
+const DEAFEN = mode => {
   const r = window.WC.qaRelayer && window.WC.qaRelayer()
   if (!r) return 'no qaRelayer (bundle without WC-DEAFSOCKET1)'
   window.__dropped = 0
-  r.onProviderPayload = function () { window.__dropped++ }
+  r.onProviderPayload = async function (e) {
+    window.__dropped++
+    if (mode === 'ack' && e && typeof e.method === 'string' && e.method.endsWith('_subscription')) { try { await this.acknowledgePayload(e) } catch (x) {} }
+  }
   if (!r.__qaCure) { r.__qaCure = true; r.on('relayer_connect', () => { delete r.onProviderPayload; window.__cured = (window.__cured || 0) + 1 }) }
   return 'deaf'
 }
@@ -252,17 +261,17 @@ async function main() {
         // healthy first: a sign comes straight back
         const warm = await signDeaf(page, sim, 30)
         ok(warm.verifies, 'healthy link: the wallet signed', JSON.stringify(warm))
-        ok((await page.evaluate(DEAFEN)) === 'deaf', 'the link is made deaf')
+        ok((await page.evaluate(DEAFEN, 'drop')) === 'deaf', 'the link is made deaf (unacknowledged)')
         const ping = await page.evaluate(() => window.WC.pingSession())
         ok(ping.ok === false, 'deaf link: a ping to the wallet fails (the 9 Nov symptom reproduced)', JSON.stringify(ping))
         // (a direct ping does not trigger F1 — only a ping inside a sign does — so no cooldown to wait out)
         const r = await signDeaf(page, sim, 30)
+        await page.waitForTimeout(5000)   // let F1 finish its own steps after the sign settled, for the log
         const dg = await deafDiag(page)
         log('deaf diag:', JSON.stringify(dg).slice(0, 900))
         ok(r.verifies, `deaf link: the sign still came back and verifies (${r.ms} ms)`, JSON.stringify({ r, dg }))
         ok(r.ms < 25000, 'well inside the 30 s validity window', r.ms)
         ok(dg.some(x => x[0] === 'wc:deaf:restart'), 'F1 restarted the transport', JSON.stringify(dg))
-        ok(dg.some(x => x[0] === 'wc:deaf:ping2' && x[1].ok === true), 'the wallet answered the second ping', JSON.stringify(dg))
         const cured = await page.evaluate(() => ({ dropped: window.__dropped, cured: window.__cured || 0 }))
         ok(cured.dropped > 0 && cured.cured > 0, 'messages really were dropped, and the reconnect cured it', JSON.stringify(cured))
         log('answered by:', dg.some(x => x[0] === 'wc:deaf:resend-answered' && !x[1].settledAlready) ? 'the resend' : 'the original request (relay redelivered after the reconnect)')
@@ -273,7 +282,7 @@ async function main() {
     await scenario(browser, cfg, '6. hidden page (a phone, wallet in front): F1 leaves a deaf link alone', {
       metadata: HASHPACK, desktop: true,
       run: async (page, sim) => {
-        ok((await page.evaluate(DEAFEN)) === 'deaf', 'the link is made deaf')
+        ok((await page.evaluate(DEAFEN, 'drop')) === 'deaf', 'the link is made deaf')
         await page.evaluate(() => { window.__vis = 'hidden' })
         const r = await signDeaf(page, sim, 20)
         const dg = await deafDiag(page)
@@ -281,6 +290,22 @@ async function main() {
         ok(!r.verifies && /KWC-TIMEOUT/.test(r.error || ''), 'no answer, ends at the window as before (KWC-TIMEOUT)', JSON.stringify(r))
         ok(dg.some(x => x[0] === 'wc:deaf:skip' && x[1].reason === 'skip-hidden'), 'F1 saw the hidden page and stood aside', JSON.stringify(dg))
         ok(!dg.some(x => x[0] === 'wc:deaf:restart'), 'no transport restart on a hidden page', JSON.stringify(dg))
+      },
+    })
+
+    await scenario(browser, cfg, '7. desktop: a deaf link that SWALLOWED the answer is recovered by the resend', {
+      metadata: HASHPACK, desktop: true,
+      run: async (page, sim) => {
+        ok((await page.evaluate(DEAFEN, 'ack')) === 'deaf', 'the link is made deaf (messages acknowledged, then dropped)')
+        const r = await signDeaf(page, sim, 30)
+        await page.waitForTimeout(2000)
+        const dg = await deafDiag(page)
+        log('swallowed diag:', JSON.stringify(dg).slice(0, 900))
+        ok(r.verifies, `the sign came back and verifies (${r.ms} ms)`, JSON.stringify({ r, dg }))
+        ok(r.ms < 25000, 'well inside the 30 s validity window', r.ms)
+        ok(dg.some(x => x[0] === 'wc:deaf:restart'), 'F1 restarted the transport', JSON.stringify(dg))
+        ok(dg.some(x => x[0] === 'wc:deaf:ping2' && x[1].ok === true), 'the wallet answered the second ping', JSON.stringify(dg))
+        ok(dg.some(x => x[0] === 'wc:deaf:resend-answered' && x[1].settledAlready === false), 'the answer came from the resend', JSON.stringify(dg))
       },
     })
   } finally { await browser.close() }
