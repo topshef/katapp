@@ -47,7 +47,11 @@ $useKpool = $_GET['kpool'] ?? 1;
 if (!$useKpool)
     require_once('zindex_deprecating.php');
 
-$custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">';
+$custom_style = '<link rel="stylesheet" type="text/css" href="future/future.css">'
+	// DARK-PAGES1 (owner 2026-11-10): /m/sign gets a dark mode — future-dark.css holds the dark twins of the
+	// whole chrome (bootstrap, style.php.css, owl, future.css; build/dark-css.mjs), so it must come last.
+	. '<meta name="color-scheme" content="light dark">'
+	. '<link rel="stylesheet" type="text/css" href="future/future-dark.css">';
 
 
 if ($txid) exit(include('tx_approval.php'));

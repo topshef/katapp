@@ -6,6 +6,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 
   <link rel="stylesheet" href="kea.css">
+  <!-- DARK-PAGES1 (owner 2026-11-10): kea.css is mostly theme-neutral (translucent greys); declaring both schemes
+       lets the browser's own dark canvas show through, and kea-dark.css (build/dark-css.mjs) does the rest.
+       Declaring it also stops Chrome repainting the page. -->
+  <meta name="color-scheme" content="light dark">
+  <link rel="stylesheet" href="kea-dark.css">
 
   <!-- KEA-VENDOR1 (2026-11-06): a cross-site <script> from kpay.uk/assets/js/darkmode.js was here. That
        address now answers with an HTML page, so browsers blocked it and it never ran; a signer page

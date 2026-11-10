@@ -5,6 +5,10 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
 	<link rel="stylesheet" href="<?= kasset('katomia.css') ?>" />
+	<!-- DARK-PAGES1 (owner 2026-11-10): this page has its own dark mode — katomia-dark.css here, and the
+	     generated block after this page's own style block (build/dark-css.mjs). Declaring it stops Chrome repainting the page. -->
+	<meta name="color-scheme" content="light dark">
+	<link rel="stylesheet" href="<?= kasset('katomia-dark.css') ?>">
 <?= kicon() ?>
 	<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
   <title>katomia</title>
