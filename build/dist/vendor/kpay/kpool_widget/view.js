@@ -2835,6 +2835,51 @@ export function injectTxReadCSS() {
 		}
 		.txread-nerd-toggle:hover { filter:brightness(1.08); }
 
+		/* DARK-SIGN1 (owner 2026-11-10, "cleanup dark mode", with screenshots): this modal had no
+		   dark styles, so in dark mode it was whatever the browser made of the light ones — Chrome
+		   inverted the plain colours (card heads, chips) but left the hatched before/after panels
+		   and the BEFORE/AFTER legend light pink and green, and Safari showed it all light. These
+		   are its dark styles; light is untouched. Same meaning, dark ground: the send side stays
+		   red-tinted and the receive side green-tinted, the stripes a little stronger so the
+		   texture still reads. Palette shared with the board (katomia-board.css DARK-BOARD1). */
+		@media (prefers-color-scheme: dark) {
+			.txcard { background:#1f232a; border-color:rgba(255,255,255,.14); }
+			.txcards-preview { border-color:rgba(255,255,255,.14); }
+			.txcard-head { background:#262b33; border-bottom-color:rgba(255,255,255,.08); }
+			.txcard-head--toggle:hover { background:#2d333c; }
+			.txcard-acct { color:#c3cde0; }
+			.txcard-payer, .txcard-acct-label { color:#8b95a5; }
+			.txcard-you { color:#22d3ee; }
+			.txcards { --txhatch-a:.08; }
+			.txpreview-before, .txcard-send,
+			.txpreview-before:hover, .txpreview-before:focus, .txpreview-before:active, .txpreview-before.txpreview-half--tapped {
+				background: repeating-linear-gradient(var(--txhatch-deg), rgba(248,113,113,var(--txhatch-a)) 0 var(--txhatch-d), transparent var(--txhatch-d) calc(var(--txhatch-d) + var(--txhatch-g))), #2b2023; }
+			.txpreview-after, .txcard-receive,
+			.txpreview-after:hover, .txpreview-after:focus, .txpreview-after:active, .txpreview-after.txpreview-half--tapped {
+				background: repeating-linear-gradient(calc(180deg - var(--txhatch-deg)), rgba(74,222,128,var(--txhatch-a)) 0 var(--txhatch-d), transparent var(--txhatch-d) calc(var(--txhatch-d) + var(--txhatch-g))), #1c2923; }
+			.txcards[data-hatch="0"] .txpreview-before, .txcards[data-hatch="0"] .txcard-send,
+			.txcards[data-hatch="0"] .txpreview-before:hover, .txcards[data-hatch="0"] .txpreview-before:focus { background:#2b2023; }
+			.txcards[data-hatch="0"] .txpreview-after, .txcards[data-hatch="0"] .txcard-receive,
+			.txcards[data-hatch="0"] .txpreview-after:hover, .txcards[data-hatch="0"] .txpreview-after:focus { background:#1c2923; }
+			.txpreview-before { color:rgba(248,113,113,.62); }
+			.txpreview-after  { color:rgba(74,222,128,.58); }
+			.txcard-chip { background:#2c323b; border-color:rgba(255,255,255,.16); color:#e7ecf4; }
+			.txcard-chip-ghost { background:transparent; color:#7c8696; }
+			.txflow-ghost { background:#2c323b; }
+			.txread-narrative, .txread-narrative h4 { color:#c3cde0; }
+			.txread-approvals-toggle:hover { background:rgba(255,255,255,.06); }
+			.txread-nerd-panel { border-color:rgba(255,255,255,.14); }
+			.txcard-keys-explain { color:#c3cde0; }
+			.txcard-keys-explain b { color:#e7ecf4; }
+			.txcard-keys-row.kpie-hi { background:#4a4214; }
+			.txcard-keys-row--late { background:#2a2236; }
+			.txcard-detail-note { color:#e7ecf4; background:#3a2a14; border-color:#7a5a2a; }
+			.txcard-issue--warn { color:#c3cde0; }
+			.txread-nerd-toggle { background:rgba(31,35,42,.85); }
+			.txread-bytes-verify[data-status="mismatch"] { color:#ff8a8a; background:#3d1b19; }
+			.txread-bytes-verify[data-status="match"] { color:#5fd08a; }
+		}
+
 
 	`
 	document.head.appendChild(style)

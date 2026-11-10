@@ -330,6 +330,18 @@ function injectMethodsCSS() {
 		.kpsign-pane .kpsign{ margin:6px 0 0; }
 		/* MODALDVH1: same unit trap as the card — vh overhangs the phone's bottom bar */
 		@media (max-width:600px){ .kpsign-frame{ height:80vh; height:80dvh; } }
+		/* DARK-SIGN1 (owner 2026-11-10): the signing-method tabs in dark mode */
+		@media (prefers-color-scheme: dark){
+			.kpsign-tabs::after{ background:rgba(255,255,255,.1); }
+			.kpsign-tab{ color:#9aa6b8; }
+			.kpsign-tab:hover{ color:#e7ecf4; }
+			.kpsign-tab.active{ color:#7cb8ff; }
+			#txread-methods .kpsign-tab:hover{ background:rgba(255,255,255,.07); }
+			.kpsign-hint{ color:#8b95a5; }
+			.kpsign-desc{ color:#c3cde0; }
+			.kpsign-desc a{ color:#7cb8ff; }
+			.kpsign-frame{ background:#1f232a; }
+		}
 	`
 	document.head.appendChild(s)
 }

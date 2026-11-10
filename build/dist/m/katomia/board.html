@@ -3,12 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- DARK-BOARD1 (owner 2026-11-10, "cleanup dark mode"): the board styles its own dark mode
+       (katomia-board.css, the DARK-BOARD1 block). Saying so stops Chrome's "dark theme for sites"
+       from repainting the light board by its own algorithm (muddy wedges, an olive footer, the K
+       hub inverted to a white square), and gives iPhone/Safari the same dark board. -->
+  <meta name="color-scheme" content="light dark" />
   <!-- KAT-BREAKOUT1 P1: quiet cross-fade for the board→side-circle handoff (same
        ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
        fade-in before first paint). -->
   <script src="kfade.js?v=1793403648"></script>
   <link rel="stylesheet" href="katomia.css?v=1794231726" />
-<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794075795" />
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794271244" />
   <title>katomia — board</title>
 </head>
 
@@ -1379,7 +1384,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "a38c577"
+  window.KFLOW_COMMIT = "925d5d2"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1408,7 +1413,7 @@ window.katomiaNet = (() => {
      hash deep-link path (#sign=…) — effectively hidden; the widget modal
      remains reachable via the tx list outside the ring, and the hub tap
      opens the external all-wallets page for comparison. -->
-<script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/a38c577/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
+<script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/925d5d2/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 <!-- WC-ANDROIDLINK3 (2026-11-07): on Android, sends each request's "bring the wallet forward" link
      to HashPack's own app link; see the header of /assets/js/kwc-deeplink.js. Baseline (revert target): katapp 7b041f7. -->
 <script src="/assets/js/kwc-deeplink.js"></script>
@@ -1437,7 +1442,7 @@ window.katomiaNet = (() => {
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->
 <script src="katomia-txstatus.js?v=1793403648"></script>
-<script src="katomia-board.js?v=1794132795"></script>
+<script src="katomia-board.js?v=1794270890"></script>
 <script src="katomia-carousel.js?v=1793403648"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
 <script src="katomia-tickets.js?v=1793403648"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 

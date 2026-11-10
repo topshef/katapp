@@ -60,7 +60,7 @@ PAGES_SERVICE="${PAGES_SERVICE:-katui}"
 [ "$PAGES_SERVICE" = "$NAME" ] && { echo "PAGES_SERVICE=$PAGES_SERVICE is this Worker itself — the hand-through would loop"; exit 1; }
 echo "→ variant.env: Worker $NAME${KATUI_DOMAIN:+ on $KATUI_DOMAIN}; /keaton /deal /legacy handed to $PAGES_SERVICE"
 PUB="$ROOT/public_html"; DIST="$ROOT/build/$DIST_NAME"; SRC="http://127.0.0.1:$PORT"
-KWC_SNAP="a38c577"   # WC-DEAFSOCKET1 F1 bundle, built from katapp a38c577 (was 4a3351b KWC-CLEANBUILD1; see vendor/walletconnect/kwcScriptTag.php)
+KWC_SNAP="925d5d2"   # F1-MOBILE1 bundle (WC-DEAFSOCKET1 F1 + no resend on phones), built from katapp 925d5d2 (was a38c577, before that 4a3351b KWC-CLEANBUILD1; see vendor/walletconnect/kwcScriptTag.php)
 
 command -v php >/dev/null || { echo "php CLI required (>= 8.0)"; exit 1; }
 

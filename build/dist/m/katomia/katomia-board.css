@@ -2785,3 +2785,93 @@ body[data-board-skin="carousel"] .board-trailline--offstage{ visibility: hidden;
   align-self: center; margin: 0 auto;
   color: #8b95a5; font-style: italic; font-size: 13px;
 }
+
+/* ═══ DARK-BOARD1 (owner 2026-11-10, "cleanup dark mode") ══════════════════════════════════
+   board.php now says <meta name="color-scheme" content="light dark">, so Chrome no longer
+   repaints the light board by its own algorithm (its "dark theme for sites": muddy wedges, an
+   olive footer, the spotlight ring left glaring white, the K hub inverted to a white square)
+   and Safari, which never repainted, stops showing a light board under a dark chat. These
+   rules ARE the board's dark mode now. Everything here is dark-only; light is untouched.
+   Palette: felt #16181c, raised #1f232a, control #262b33, line rgba(255,255,255,.14),
+   text #e7ecf4, muted #9aa6b8. Player colours, chips and NFT art are left as they are —
+   they are already strong colours and they carry meaning. */
+@media (prefers-color-scheme: dark){
+  body.board-page{ background: #16181c; color: #e7ecf4; }
+  .board-brandmark{ color: #e7ecf4; }
+  .board-wedge{ opacity: .16; }                         /* the Ludo wash reads on dark felt */
+  .ring-boundary{ stroke: #3a3f48; }
+  .ring-basketzone{ fill: rgba(255,255,255,.025); }
+  .ring-basketzone--lit{ fill: rgba(255,255,255,.07); } /* the spotlight: a glow, not a white band */
+  .ring-storedim{ fill: rgba(0,0,0,.32); }
+  .ring-storeshade{ fill: rgba(0,0,0,.18); }
+  .ring-hub-kpath{ stroke: rgba(255,255,255,.07); }
+  .ring-hub-k{ color: rgba(255,255,255,.07); }
+  .ring-hub{ background: #1f232a; border-color: #4a6487; color: #c3cde0; }
+  [data-board-fam~="v10"] .ring-hub{ border-color: #3a3f48; }
+  .ring-hub-count{ background: rgba(31,35,42,.92); color: #e7ecf4; }
+  .ring-hub-count--signed{ color: #5fd08a; }
+  .ring-avail--mine .ring-head-label{ background: rgba(22,24,28,.7); }
+  .ring-box.drag-over{ background: rgba(255,255,255,.08); }
+  /* the big account numbers: same player colour, a little more ink so they read on dark felt */
+  .ring-feltnum--subtle .ring-feltnum-sig{ fill-opacity: .34; }
+  .ring-feltnum--subtle .ring-feltnum-pad{ fill-opacity: .18; }
+  /* footer bar and its controls */
+  .ring-footer{ background: rgba(22,24,28,.94); border-top-color: rgba(255,255,255,.12); color: #e7ecf4; }
+  body.kchat-snap-board .ring-footer, body.kchat-snap-messages .ring-footer{ background: #241f14; }
+  .ring-footer-play, .ring-footer-lock, .ring-footer-accsel, .ring-footer-maxseg,
+  .ring-footer-prefsbtn, .ring-footer-rot input{
+    background: #262b33; color: #e7ecf4; border-color: rgba(255,255,255,.18);
+  }
+  .ring-footer-prefsbtn--open{ background: #2f353e; }
+  .ring-footer-lock.locked, .ring-footer-sign{ background: #3a2f17; color: #f5d08a; border-color: #8a6a2a; }
+  .ring-footer-prefs{ background: rgba(28,31,37,.98); color: #e7ecf4; border-color: rgba(255,255,255,.14); }
+  .ring-footer-lp{ color: #9aa6b8; }
+  .board-settings-panel, .board-seat{ background: #1f232a; color: #e7ecf4; border-color: rgba(255,255,255,.14); }
+  .board-dock{ background: #1b1e23; color: #e7ecf4; }
+  /* the amount modal's controls */
+  .board-amount-input{ background: rgba(255,255,255,.08); color: #e7ecf4; }
+  .board-amount-chip{ background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.16); color: #e7ecf4; }
+  .board-amount-chip:hover{ background: rgba(255,255,255,.14); }
+  /* carousel shape: its centre piece and conveyor "break the line" with the felt colour */
+  .carousel-centre-piece{ background: #16181c; color: #e7ecf4; }
+  .carousel-conveyor{ background: #16181c; border-color: #3a3f48; color: #c3cde0; }
+}
+@media (prefers-color-scheme: dark){
+  /* DARK-BOARD1: the lock-arc hover preview — the light one's pale orange glows on dark felt */
+  [data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover{ stroke: #b9802c !important; }
+  .ring-partylight{ stroke: rgba(255,255,255,.55); }
+}
+/* DARK-BOARD1: the menu and the asset card are shared styles (katomia.css); on the board page,
+   which owns its dark mode, they go dark too. Scoped to body.board-page so the pages Chrome still
+   repaints (game, home, circles) keep exactly what they had. */
+@media (prefers-color-scheme: dark){
+  body.board-page .app-menu{ background: #1f232a; border-color: rgba(255,255,255,.14); color: #e7ecf4; box-shadow: 0 10px 30px rgba(0,0,0,.45); }
+  body.board-page .app-menu-item, body.board-page .app-menu-netlabel,
+  body.board-page .app-menu-groupicon, body.board-page .app-menu-grouplabel,
+  body.board-page .app-menu-viewlabel{ color: #e7ecf4; }
+  body.board-page .app-menu-item:hover, body.board-page .app-menu-viewbtn:hover{ background: rgba(255,255,255,.07); color: #fff; }
+  body.board-page .app-menu-item--on{ color: #fff; }
+  body.board-page .app-menu-viewrow{ border-color: rgba(255,255,255,.1); }
+  body.board-page .app-menu-viewbtn{ color: #9aa6b8; }
+  body.board-page .app-menu-viewbtn--on{ color: #7cb8ff; border-color: #2f4f7f; background: #1b2c45; }
+  body.board-page .app-menu-btn:hover{ color: #fff; }
+  body.board-page .asset-modal-card{ background: #1f232a; color: #e7ecf4; border-color: rgba(255,255,255,.12); box-shadow: 0 18px 50px rgba(0,0,0,.5); }
+  body.board-page .asset-modal-card label{ color: #9aa6b8; }
+  body.board-page .asset-modal-card input:not([type="radio"]):not([type="checkbox"]),
+  body.board-page .asset-modal-card select,
+  body.board-page .asset-modal-card textarea{ background: #262b33; color: #e7ecf4; border-color: rgba(255,255,255,.18); }
+}
+@media (prefers-color-scheme: dark){
+  body.board-page .asset-modal-card .subtle{ color: #9aa6b8; }
+  body.board-page .asset-modal-card .addacct-link{ color: #7cb8ff; }
+  body.board-page .kbtn-red{ background: rgba(200,90,90,.2); color: #f2b0b0; border-color: rgba(220,120,120,.45); }
+  body.board-page .kbtn-red:hover{ background: rgba(200,90,90,.3); }
+}
+@media (prefers-color-scheme: dark){
+  /* the menu's network row (header.php styles) */
+  body.board-page .app-menu-netrow{ border-bottom-color: rgba(255,255,255,.1); }
+  body.board-page .app-menu-net{ background: #262b33; border-color: rgba(255,255,255,.18); }
+  body.board-page .app-menu-net button{ color: #c3cde0; }
+  body.board-page .app-menu-net button:hover{ background: rgba(255,255,255,.07); }
+  body.board-page .app-menu-kchanges--on{ background: #3a3412; }
+}

@@ -30,7 +30,7 @@
 //
 // Needs the relay (relay.walletconnect.com) — CI, not the cloud sandbox (its proxy refuses it).
 // Env: ORIGIN (https://lab1.katomia.com), LIVE=1 to use the origin's deployed shim instead of this
-// commit's, KWC_PIN (a38c577), QA_KWALLET_ACCOUNT (0.0.10325114).
+// commit's, KWC_PIN (925d5d2), QA_KWALLET_ACCOUNT (0.0.10325114).
 // Each scenario has its own wallet. WalletConnect's Node core is a process-wide singleton unless
 // DISABLE_GLOBAL_CORE is set (globalThis._walletConnectCore_<prefix>): without it the second
 // wallet shares the first one's core and every proposal arrives twice (CI run 106).
@@ -45,7 +45,7 @@ const { createWalletSim } = require('./wallet-sim.cjs')
 
 const ORIGIN = (process.env.ORIGIN || 'https://lab1.katomia.com').replace(/\/+$/, '')
 const LIVE = process.env.LIVE === '1'
-const KWC_PIN = process.env.KWC_PIN || 'a38c577'
+const KWC_PIN = process.env.KWC_PIN || '925d5d2'
 const ACCOUNT = process.env.QA_KWALLET_ACCOUNT || '0.0.10325114'
 const DIST = path.resolve(__dirname, '../../build/dist')
 const UA = 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/157.0.0.0 Mobile Safari/537.36'

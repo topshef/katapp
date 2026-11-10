@@ -6,6 +6,11 @@ require_once __DIR__ . '/kasset.php';
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- DARK-BOARD1 (owner 2026-11-10, "cleanup dark mode"): the board styles its own dark mode
+       (katomia-board.css, the DARK-BOARD1 block). Saying so stops Chrome's "dark theme for sites"
+       from repainting the light board by its own algorithm (muddy wedges, an olive footer, the K
+       hub inverted to a white square), and gives iPhone/Safari the same dark board. -->
+  <meta name="color-scheme" content="light dark" />
   <!-- KAT-BREAKOUT1 P1: quiet cross-fade for the board→side-circle handoff (same
        ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
        fade-in before first paint). -->

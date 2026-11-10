@@ -535,6 +535,18 @@ function injectSignerCSS() {
 		.kpsign-select { all:revert; font:13px ui-monospace,Menlo,Consolas,monospace; color:#555;
 			padding:5px 8px; border:1px solid #ccc; border-radius:6px; background:#fff; max-width:260px; }
 		.kpsign-stale { color:#b54708; margin-bottom:8px; }
+		/* DARK-SIGN1 (owner 2026-11-10): the wallet signer in dark mode */
+		@media (prefers-color-scheme: dark) {
+			.kpsign-preview[data-state="completes"] { color:#5fd08a; }
+			.kpsign-preview[data-state="needed"], .kpsign-preview[data-state="already"] { color:#c3cde0; }
+			.kpsign-preview[data-state="not-needed"] { color:#7c8696; }
+			.kpsign-btn { background:#1d3a5f; color:#cfe5ff; border-color:#4aa3ff; }
+			.kpsign-btn:hover { background:#244a78; }
+			.kpsign-ghost { background:#262b33; color:#c3cde0; border-color:rgba(255,255,255,.2); }
+			.kpsign-msg { color:#8b95a5; }
+			.kpsign-select { background:#262b33; color:#e7ecf4; border-color:rgba(255,255,255,.2); }
+			.kpsign-stale { color:#f5b25c; }
+		}
 	`
 	document.head.appendChild(s)
 }

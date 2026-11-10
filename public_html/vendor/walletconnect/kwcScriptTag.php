@@ -27,7 +27,10 @@ function getKwc($in) {
   //   hidden page). Built clean from katapp a38c577 with the same lockfile; unminified, the only difference from
   //   4a3351b is that code, WC.qaRelayer() and the build stamp. kwc.iife.js SHA256 f67fd6c91f7be993a93bcb708424e000a11adb07b1de0b621f2275c2e3cf9d0b.
   //   lab1 (katapp) only; labs (phpjabbers) stays on 4a3351b as the benchmark.
-  $kwc_version = $in['kwc_version'] ?? 'a38c577';  //4a3351b = KWC-CLEANBUILD1 (2026-08-28): first clean off-estate rebuild — built from verified source (this repo @4a3351b) with lockfile-pinned deps on a clean host, NOT the compromised Lincoln estate. kwc.iife.js SHA256 9a153df26c35f4027ad59d5090b935891fab84885b382c6fc446f4c281eb38dc. kpos.uk deal egress neutralised in source (GoMint only; katomia unaffected). Supersedes the Lincoln-built snapshots below for trust. prev 33993b7 / 8e6255c / dd98ee1 / 3c7e7c3 / 2bae073 / e31d3b7 / a99a66e / 30c3fd9 / de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison.
+  // 925d5d2 = F1-MOBILE1 (katapp, 2026-11-10): a38c577 plus "never resend on a phone" (during order auto-sign a
+  //   phone's page stays visible, and the resend left a duplicate approval in HashPack). Built clean from katapp
+  //   925d5d2, same lockfile. kwc.iife.js SHA256 ecb4820d7d49415b2a28475eb893b2b81c870bd11b7156f0e41089872a18ca4f.
+  $kwc_version = $in['kwc_version'] ?? '925d5d2';  //4a3351b = KWC-CLEANBUILD1 (2026-08-28): first clean off-estate rebuild — built from verified source (this repo @4a3351b) with lockfile-pinned deps on a clean host, NOT the compromised Lincoln estate. kwc.iife.js SHA256 9a153df26c35f4027ad59d5090b935891fab84885b382c6fc446f4c281eb38dc. kpos.uk deal egress neutralised in source (GoMint only; katomia unaffected). Supersedes the Lincoln-built snapshots below for trust. prev 33993b7 / 8e6255c / dd98ee1 / 3c7e7c3 / 2bae073 / e31d3b7 / a99a66e / 30c3fd9 / de29cb6 / aa0fdbc / 64c41ba / 17f774f / 4c7696e / 4f74b48 / 53216ab — override via ?kwc_version=… for A/B comparison.
   // 8e6255c = WC-DOUBLEINIT1 (lab2, 2026-08-07): ONE connector per page. ensureNetwork() had no
   //   in-flight guard — its dappConnector check ran before the await — so two concurrent callers
   //   (katomia-auth.js page init + kpool signer-walletconnect.js) each built a DAppConnector.

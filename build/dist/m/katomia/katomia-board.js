@@ -7340,7 +7340,23 @@ function boardHexToRgb(hex){
   return m ? [parseInt(m[1], 16), parseInt(m[2], 16), parseInt(m[3], 16)] : [153, 153, 153]
 }
 const boardMixRgb = (base, tint, alpha) => base.map((c, i) => Math.round(c * (1 - alpha) + tint[i] * alpha))
+// DARK-BOARD1 (owner 2026-11-10, "cleanup dark mode"): on a page that styles its own dark mode
+// (board.php's <meta name="color-scheme" content="light dark">) with the phone in dark mode, the
+// felt is #16181c (katomia-board.css DARK-BOARD1) and these tones mix from THAT: the light
+// ladder pushed resting strips toward cream-brown and active ones toward white, which on dark
+// felt read as a glaring white ring. Dark ladder: a muted band of the player's own colour at
+// rest, a brighter band when active, a clear but not white target strip. Light is unchanged,
+// and a page without the meta (game.php) keeps the light ladder whatever the phone says.
+const BOARD_FELT_RGB_DARK = [22, 24, 28]
+function boardDarkFelt(){
+  try {
+    return !!document.querySelector('meta[name="color-scheme"][content~="dark"]')
+      && typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches
+  } catch { return false }
+}
+const boardHex = ([r, gC, b]) => "#" + [r, gC, b].map(c => c.toString(16).padStart(2, "0")).join("")
 function boardTargetStripColour(playerHex){
+  if(boardDarkFelt()) return boardHex(boardMixRgb(boardMixRgb(BOARD_FELT_RGB_DARK, boardHexToRgb(playerHex), 0.38), [255, 255, 255], 0.12))
   const washed = boardMixRgb(BOARD_FELT_RGB, boardHexToRgb(playerHex), BOARD_WASH_ALPHA)
   const [r, gC, b] = boardMixRgb(washed, [255, 255, 255], BOARD_LIGHTEN_ALPHA)
   return "#" + [r, gC, b].map(c => c.toString(16).padStart(2, "0")).join("")
@@ -7366,6 +7382,9 @@ const BOARD_RING_DARKEN_ALPHA = 0.20   // toward the storeshade brown
 // player colours, throwing away the identity the whole ladder exists to carry.
 const BOARD_RING_ACTIVE_ALPHA = 0.68
 function boardRingToneColour(playerHex, active){
+  if(boardDarkFelt()) return boardHex(active
+    ? boardMixRgb(boardMixRgb(BOARD_FELT_RGB_DARK, boardHexToRgb(playerHex), 0.55), [255, 255, 255], 0.10)
+    : boardMixRgb(BOARD_FELT_RGB_DARK, boardHexToRgb(playerHex), 0.30))
   const washed = boardMixRgb(BOARD_FELT_RGB, boardHexToRgb(playerHex), BOARD_WASH_ALPHA)
   const [r, gC, b] = active
     ? boardMixRgb(washed, [255, 255, 255], BOARD_RING_ACTIVE_ALPHA)

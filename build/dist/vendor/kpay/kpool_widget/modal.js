@@ -162,6 +162,17 @@ function injectModalCSS() {
 		.walletconnect-modal__base, #walletconnect-qrcode-modal, #wcm-modal {
 			z-index: 2147483000 !important;
 		}
+		/* DARK-SIGN1 (owner 2026-11-10): the modal shell and status header in dark mode — the tone
+		   colours keep their meaning (green success, amber waiting, red error) on a dark ground. */
+		@media (prefers-color-scheme: dark) {
+			.kpm-card { background: linear-gradient(180deg, #1c1f25 0%, #16181c 100%); color: #e7ecf4; }
+			.kpm-head { border-bottom-color: rgba(255,255,255,.08); }
+			.kpm-tone-info    { background: #262b33; color: #c3cde0; }
+			.kpm-tone-success { background: #173326; color: #8fe0b0; }
+			.kpm-tone-warn    { background: #3a2f12; color: #f2c35b; }
+			.kpm-tone-error   { background: #3d1b19; color: #ff9a92; }
+			.kpm-diag:hover, .kpm-open-tab:hover { background: rgba(255,255,255,.08); }
+		}
 	`
 	document.head.appendChild(style)
 	installWcmZIndexGuard()
