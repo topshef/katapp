@@ -13,6 +13,10 @@ error_log*.log
 *.bat
 *.png
 *.PNG
+# WC-ICON1 (2026-11-10): the one PNG the site needs — the WalletConnect icon a wallet shows when
+# pairing (wallet apps do not all draw SVG). Without these two lines it never reached the deploy.
+!public_html/m/katomia/assets/katomia-icon-256.png
+!build/dist/m/katomia/assets/katomia-icon-256.png
 *.jpg
 *.jpeg
 *.gif
