@@ -14,20 +14,31 @@ katapp was split out of `topshef/phpjabbers` on 2026-10-19 with its history. See
 | Host | Worker | Built from | Backend |
 | --- | --- | --- | --- |
 | `lab1.katomia.com` (Katomia at `/`) | `katui-lab1` | this repo, branch `lab1`, root `build/dist` (git connection moved here from phpjabbers by the owner, 2026-10-20) | `api.katomia.com` → hapi8 |
-| `labs.katomia.com` (Katomia at `/m/katomia/`) | `katui` | **still phpjabbers** `pilot` — the benchmark, deliberately untouched | same |
+| `labs.katomia.com` (Katomia at `/`) | `katui-labs` | this repo, branch `labs` (LABS-PROMOTE1, 2026-11-10): the same build as lab1, at the commit last PROMOTED | same |
+| (no public host; `katui.tayloa17.workers.dev`) | `katui` | phpjabbers `pilot` — serves only what katapp hands it: `/keaton`, `/deal`, `/deals`, `/legacy`, `/future/v3`, `/assets/js/page-feedback.js` (service binding `PAGES`) | same |
 
-**The two hosts differ on purpose (ROOT-MOVE1, 2026-10-31):** lab1 serves Katomia at the
-hostname root (`lab1.katomia.com/board/t-trio`); labs still serves it under `/m/katomia/`
-(`labs.katomia.com/m/katomia/board/t-trio`). On lab1 every old `/m/katomia/…` page address
-redirects to the root form, and the old API and file addresses keep answering, so links shared
-before the move still open. See `build/router.js` for the map.
+**lab1 is live development; labs is the pseudo-production pointer (owner 2026-11-10).** Both
+serve the SAME bundle (`build/dist`); only the Worker config differs (`wrangler.toml` for lab1,
+`wrangler.labs.toml` for labs, both written by `build-static.sh` from `build/variant.env`).
+lab1 follows `main`; labs stays at whatever commit was last promoted, so lab1 can move ahead.
+**Promote** a commit that is already live and checked on lab1: `git push origin <commit>:labs`
+(a fast-forward; never force-push), then deploy the labs Worker from that commit (below) and
+poll `https://labs.katomia.com/build-info.json`. **Roll back** = deploy an older commit.
+Deploying labs: when the Cloudflare git connection for `katui-labs` exists (Workers → katui-labs
+→ Settings → Build: repo topshef/katapp, branch `labs`, root `build/dist`, deploy command
+`npx wrangler deploy -c wrangler.labs.toml`), the push does it; until then a session deploys it
+from a checkout of that commit: `cd build/dist && npx wrangler deploy -c wrangler.labs.toml`.
+
+**Katomia is served at the hostname root (ROOT-MOVE1, 2026-10-31):** `/board/t-trio`. Every old
+`/m/katomia/…` page address redirects to the root form, and the old API and file addresses keep
+answering, so links shared before the move still open. See `build/router.js` for the map.
 
 Both hosts reach the same backend through the same API alias Worker (`kpay-api-alias`,
-service binding `HAPI`), so lab1 and labs can be compared like for like. `app.katomia.com`
-(the stable site for users) comes later, from this repo.
+service binding `HAPI`). `app.katomia.com` (the stable site for users) comes later.
 
-The Worker name is never left to chance: `build/variant.env` names it (`katui-lab1` today) and
-the build refuses to run without that file, so nothing built here can deploy over `katui`.
+The Worker names are never left to chance: `build/variant.env` names them (`katui-lab1`,
+`katui-labs`) and the build refuses to run without that file or with a name that would loop the
+hand-through, so nothing built here can deploy over `katui`.
 
 ## Layout
 

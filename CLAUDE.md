@@ -16,11 +16,14 @@ register is `topshef/kmigrate` (record `katomia-labs`); log changes there as oth
   runs with `KATOMIA_AT_ROOT=1`, so PHP's `$katomiaBase` is `''`; Katomia's API calls use
   `$katomiaApi` / `window.KAPI` (`/hapi/katomia`), because at the root `/hapi/<x>` is the
   backend's whole namespace. Never write `/m/katomia` into a link again. labs.katomia.com
-  (phpjabbers) still serves the old layout as the A/B benchmark. Status and history: kmigrate
+  serves this repo's build too since LABS-PROMOTE1 (below). Status and history: kmigrate
   `modules/katomia-labs.json`; plan https://claude.ai/artifact/5e63151e-bbfd-4d32-b9e5-752c8a8eb13e.
-- **Never make this repo deploy as `katui`.** `build/variant.env` names the Worker
-  (`katui-lab1`). labs.katomia.com (`katui`) is built from phpjabbers and is the owner's
-  benchmark; the owner rewires it, not a session.
+- **labs.katomia.com is built from this repo too (LABS-PROMOTE1, owner 2026-11-10).** Worker
+  `katui-labs`, branch `labs`, the same bundle with `build/dist/wrangler.labs.toml`. lab1 is live
+  development; labs is the pseudo-production pointer: **promote only a commit already live and
+  checked on lab1** (`git push origin <commit>:labs`, fast-forward, never force), then deploy it
+  (README: "Promote"). Never make this repo deploy as `katui`: that is phpjabbers' Worker, now
+  serving only the pages katapp hands it (`PAGES_SERVICE`).
 - **Deploying lab1:** push `main`, then move `lab1` to the same commit. The Cloudflare Worker
   `katui-lab1` builds branch `lab1`. Poll `https://lab1.katomia.com/build-info.json` (the old `/m/katomia/build-info.json` is the same file)
   until `built` changes, and only then say it is live.

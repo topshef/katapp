@@ -263,12 +263,25 @@ ALIAS_ORIGIN = "https://${ALIAS%%/*}"
 $( [ -n "$KATUI_DOMAIN" ] && printf '\n# LAB2-DEPLOY1: wrangler attaches the custom domain on deploy (zone on the same account)\nroutes = [{ pattern = "%s", custom_domain = true }]\n' "$KATUI_DOMAIN" )
 WT
 
+# LABS-PROMOTE1: the labs Worker deploys THIS bundle with its own name and custom domain
+# (build/variant.env LABS_NAME / LABS_DOMAIN). Same bindings, same router, same files.
+if [ -n "${LABS_NAME:-}" ]; then
+  [ "$LABS_NAME" = "$NAME" ] && { echo "LABS_NAME=$LABS_NAME is the lab Worker itself"; exit 1; }
+  [ "$LABS_NAME" = "$PAGES_SERVICE" ] && { echo "LABS_NAME=$LABS_NAME is the PAGES Worker — the hand-through would loop"; exit 1; }
+  echo "→ wrangler.labs.toml ($LABS_NAME${LABS_DOMAIN:+ on $LABS_DOMAIN}; deployed from branch labs)"
+  sed -e "s/^name = \"$NAME\"$/name = \"$LABS_NAME\"/" \
+      -e '/^# LAB2-DEPLOY1: wrangler attaches the custom domain/d' -e '/^routes = \[/d' "$DIST/wrangler.toml" > "$DIST/wrangler.labs.toml"
+  grep -q "^name = \"$LABS_NAME\"$" "$DIST/wrangler.labs.toml" || { echo "wrangler.labs.toml: rename failed"; exit 1; }
+  [ -n "${LABS_DOMAIN:-}" ] && printf '\n# LABS-PROMOTE1: the labs custom domain (wrangler attaches it on deploy)\nroutes = [{ pattern = "%s", custom_domain = true }]\n' "$LABS_DOMAIN" >> "$DIST/wrangler.labs.toml"
+fi
+
 echo "→ .assetsignore (keep Worker config + wrangler's own droppings out of the PUBLIC bundle:"
 echo "   a deploy run from inside dist/ once uploaded .wrangler/cache/wrangler-account.json — KATUI-LEAK1)"
 cat > "$DIST/.assetsignore" <<AI
 .wrangler
 router.js
 wrangler.toml
+wrangler.labs.toml
 .assetsignore
 AI
 

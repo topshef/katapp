@@ -1,4 +1,5 @@
 .wrangler
 router.js
 wrangler.toml
+wrangler.labs.toml
 .assetsignore
