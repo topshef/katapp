@@ -324,7 +324,7 @@ function boardSavePrefs(){
       netView: boardNetView, partyOnly: boardPartyOnly,
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
       trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
-      zoneWalls: boardZoneWalls, hugRing: boardHugRing, lockBevel: boardLockBevel, signLabel: boardSignLabel,
+      zoneWalls: boardZoneWalls, hugRing: boardHugRing, lockBevel: boardLockBevel, signLabel: boardSignLabel, msgDetail: boardMsgDetail,
       stickyChips: boardStickyChips, autoArrange: boardAutoArrange, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
       counterMode: boardCounterMode, chipStyle: boardChipStyle, chipShape: boardChipShape,
@@ -489,6 +489,13 @@ let boardLockBevel = _bp.lockBevel ?? true
 // View → Lab → "Signing labels", or ?signlabel=lift|glow|outline for one visit.
 let boardSignLabel = ["lift", "glow", "outline"].includes(_bp.signLabel) ? _bp.signLabel : "lift"
 try { const q = new URLSearchParams(location.search).get("signlabel"); if(["lift", "glow", "outline"].includes(q)) boardSignLabel = q } catch(_){}
+// MSG-CONCISE1 (owner 2026-11-10: "the message stream is quite verbose … a mode like verbose or terse
+// … in the preferences"): View → Messages. concise (default) = a settled or failed transaction is one
+// line (its deal-struck / signing rows fold into the ✅ / ⌛ row, "+N" opens them) and a line said
+// word for word many times shows once with ×N; full = every row, as before. katomia-chat.js reads
+// body[data-msg-detail]. ?msgs=full|concise for one visit.
+let boardMsgDetail = _bp.msgDetail === "full" ? "full" : "concise"
+try { const q = new URLSearchParams(location.search).get("msgs"); if(q === "full" || q === "concise") boardMsgDetail = q } catch(_){}
 // 🧪 lab (user 2026-07-16, board-game feel / BOARD-ARRANGE1 first slice):
 // once the sim settles, chips become STICKY — springs skip them and
 // collisions can't move them (a newcomer takes the whole separation push and
@@ -1464,6 +1471,16 @@ function boardSyncPrefsUI(){
       boardLockBevel = lockBevel.checked
       boardSavePrefs()
       boardApplyLockBevel()   // CSS only — nothing to re-render
+    }
+  }
+  const msgDetail = document.getElementById("boardPrefMsgDetail")
+  if(msgDetail){
+    msgDetail.value = boardMsgDetail
+    msgDetail.onchange = () => {
+      boardMsgDetail = msgDetail.value === "full" ? "full" : "concise"
+      boardSavePrefs()
+      document.body.dataset.msgDetail = boardMsgDetail   // MSG-CONCISE1
+      try { window.katomiaChat?.render?.() } catch(_){}
     }
   }
   const signLabel = document.getElementById("boardPrefSignLabel")
@@ -4830,7 +4847,7 @@ async function boardRefreshSignStatus(){
         _boardSignersAnnounced.add(tx.txid)
         if(_boardSignersAnnounced.size > 200) _boardSignersAnnounced = new Set([tx.txid])
         if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system)
-          window.katomiaChat.system(`✍️ Signatures needed from ${req.join(", ")}.`)
+          window.katomiaChat.system(`✍️ Signatures needed from ${req.join(", ")}.`, { about: tx.txid })   // MSG-CONCISE1
       }
     }
     boardAnnounceSigned(tx.txid, byAccount)   // BOARD-ACTIONMSG1 R3: "signed" rows
@@ -4876,6 +4893,7 @@ function boardAnnounceSigned(txid, byAccount){
     const acc = Object.values(state?.accounts || {}).find(a => (a.id.split(":")[1] || a.id) === hac)
     if(!acc) continue
     window.katomiaChat.action({
+      about: txid,                // MSG-CONCISE1: folds into the transaction's outcome
       type: "event",
       message: `${hac} signed`,   // prose fallback, same convention as the backend's
       action: { v: 1, kind: "sign", actor: acc.playerId, account: acc.id, ts: Date.now() }
@@ -4922,7 +4940,7 @@ function boardAnnounceIssues(txid, short, unassoc){
   if(_boardIssueAnnounced.size > 400) _boardIssueAnnounced = new Set()
   for(const msg of rows){
     if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system)
-      window.katomiaChat.system(msg)
+      window.katomiaChat.system(msg, { about: txid })   // MSG-CONCISE1
     else
       notify(msg, "warning", { timeout: 0 })
   }
@@ -5477,7 +5495,7 @@ async function boardDirectSign(account){
     if(freshStray.length && sr.hint){
       boardDiag("board:sign:wrong-key", { txid: tx.txid, accountId: signAs, unexplained: stray.map(k => k.slice(-8)), fresh: freshStray.length, accountKeys: sr.accountKeys })
       notify(`Signature saved but it will NOT count: ${sr.hint}`, "warning", { timeout: 15000, txid: tx.txid })   // the warning type adds the ⚠️
-      try { if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system) window.katomiaChat.system(`⚠️ ${signAs}: ${sr.hint}`) } catch {}
+      try { if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system) window.katomiaChat.system(`⚠️ ${signAs}: ${sr.hint}`, { about: tx.txid }) } catch {}
     } else if(stray.length){
       // only an EARLIER tap's stray key is outstanding: this signature is fine
       boardDiag("board:sign:stray-earlier", { txid: tx.txid, accountId: signAs, unexplained: stray.map(k => k.slice(-8)) })
@@ -5486,7 +5504,7 @@ async function boardDirectSign(account){
       // that's so important … the message stream is absolutely fine for showing that signatures
       // come in"): no toast for a good signature. The ring shows it; what the pool still waits
       // for goes to the stream when it is showing.
-      try { if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system) window.katomiaChat.system(`✍ ${signAs} signed — ${sr.hint}`) } catch {}
+      try { if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system) window.katomiaChat.system(`✍ ${signAs} signed — ${sr.hint}`, { about: tx.txid }) } catch {}
     }
   } catch(e){
     // SIGN-ERRSTR1: readable message + the raw rejection as a structured field
@@ -7573,6 +7591,7 @@ function boardApplyLockBevel(){
   boardLockBevelDefs()
   document.body.dataset.lockBevel = boardLockBevel ? "1" : "0"
   document.body.dataset.signLabel = boardSignLabel   // SIGNLABEL1
+  document.body.dataset.msgDetail = boardMsgDetail   // MSG-CONCISE1
 }
 
 function boardWireLockBar(el, account, locked){

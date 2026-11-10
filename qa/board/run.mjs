@@ -1567,6 +1567,60 @@ console.log('ASSET-AUTO1: auto = the assets that moved in the last 14 days (six 
   await page.close()
 }
 
+// ── MSG-CONCISE1 (owner 2026-11-10: "the message stream is quite verbose … once a transaction is
+// settled successfully, you don't really care about the deal struck information … we need a way of
+// just sort of clearing the deck") ──
+console.log('MSG-CONCISE1: a settled or failed deal is one line; Everything shows every row; 🧹 clears, Show brings back')
+{
+  const { page, errs } = await open('')
+  const r = await page.evaluate(async () => {
+    document.body.dataset.kchatMode = 'panel'; boardChatMode = 'panel'
+    try { localStorage.removeItem('katomiaChatClear:' + window.katomiaCircleSlug()) } catch {}
+    const T = Date.now() - 600000, a = '0.0.1001@1794000000.100000000', f = '0.0.1001@1794000100.200000000'
+    state.chat = [
+      { id: 9001, ts: T, system: true, text: `🔒 Deal struck — transaction ${a} is awaiting signatures. 40s signing window.` },
+      { id: 9002, ts: T + 5000, system: true, text: '✅ Transaction settled successfully.', link: `https://hashscan.io/testnet/transaction/${encodeURIComponent(a)}`, linkText: a },
+      { id: 9003, ts: T + 10000, system: true, text: `🔒 Deal struck — transaction ${f} is awaiting signatures. 40s signing window.` },
+      { id: 9004, ts: T + 50000, system: true, text: `⌛ Transaction failed or expired — ${f}` },
+      { id: 9005, ts: T + 50100, system: true, text: '⚠️ Why it did not settle: still unsigned by 0.0.1001 (0 of 1)' },
+      { id: 9006, ts: T + 50200, system: true, text: '🔁 Deal reloaded — the failed transaction\'s offers are back on the table.' },
+      { id: 9007, ts: T + 51000, system: true, text: 'Welcome to qa.' },
+      { id: 9008, ts: T + 52000, system: true, text: 'Welcome to qa.' },
+      { id: 9009, ts: T + 60000, playerId: Object.keys(state.players || {})[0] || 'p1', text: 'hello table' },
+    ]
+    const list = () => document.querySelector('#boardChatDock .kchat-dock-list') || document.querySelector('.kchat-panel-list')
+    const snap = () => {
+      const rows = [...list().querySelectorAll('.kchat-row')].map(x => ({ t: x.querySelector('.kchat-row-text')?.textContent || '', fold: x.querySelector('.kchat-fold')?.textContent || '', rep: x.querySelector('.kchat-rep')?.textContent || '', href: x.querySelector('a[href*="kpay.uk"], a[href*="hashscan"]')?.href || '' }))
+      return { rows, cleared: list().querySelector('.kchat-cleared')?.textContent || '' }
+    }
+    const tick = () => new Promise(res => setTimeout(res, 60))
+    document.body.dataset.msgDetail = 'full'; window.katomiaChat.render(); await tick()
+    const full = snap()
+    document.body.dataset.msgDetail = 'concise'; window.katomiaChat.render(); await tick()
+    const concise = snap()
+    ;[...list().querySelectorAll('.kchat-fold')].find(b => b.textContent === '+3')?.click(); await tick()
+    const opened = snap()
+    window.katomiaChat.clear(); await tick()
+    const cleared = snap()
+    list().querySelector('.kchat-cleared button')?.click(); await tick()
+    const shown = snap()
+    return { full, concise, opened, cleared, shown }
+  })
+  const has = (s, re) => s.rows.some(x => re.test(x.t))
+  const ok1 = r.concise.rows.find(x => /^✅/.test(x.t)), bad = r.concise.rows.find(x => /^⌛/.test(x.t))
+  ok(has(r.full, /Deal struck/) && has(r.full, /Deal reloaded/) && r.full.rows.filter(x => /^Welcome to qa/.test(x.t)).length === 2, 'Everything: every row shows, as before', JSON.stringify(r.full.rows.map(x => x.t.slice(0, 30))))
+  ok(!has(r.concise, /Deal struck/) && !has(r.concise, /Deal reloaded|Why it did not settle/) && ok1?.fold === '+1' && bad?.fold === '+3',
+    'Concise: each deal is one line — the ✅ folds its deal-struck row (+1), the ⌛ folds struck, why and reloaded (+3)', JSON.stringify(r.concise.rows.map(x => [x.t.slice(0, 40), x.fold])))
+  ok(/still unsigned by 0\.0\.1001 \(0 of 1\)$/.test(bad?.t || ''), 'Concise: a failed deal keeps its reason on its one line', bad?.t)
+  ok(/^https:\/\/kpay\.uk\/tx\/testnet\/0\.0\.1001-1794000000-100000000$/.test(ok1?.href || ''), 'the settled line still opens the kpay.uk receipt', ok1?.href)
+  ok(r.concise.rows.filter(x => /^Welcome to qa/.test(x.t)).length === 1 && r.concise.rows.find(x => /^Welcome to qa/.test(x.t))?.rep === '×2' && has(r.concise, /hello table/),
+    'Concise: a line said twice shows once with ×2; what people say is never folded', JSON.stringify(r.concise.rows.map(x => [x.t.slice(0, 20), x.rep])))
+  ok(has(r.opened, /Why it did not settle/) && has(r.opened, /Deal reloaded/) && r.opened.rows.find(x => /^⌛/.test(x.t))?.fold === '−', '+3 opens that deal\'s rows; − folds them again', JSON.stringify(r.opened.rows.map(x => [x.t.slice(0, 30), x.fold])))
+  ok(!has(r.cleared, /Transaction|hello table/) && /cleared/.test(r.cleared.cleared) && has(r.shown, /hello table/) && !r.shown.cleared, '🧹 clears the stream on this device; Show brings it back', JSON.stringify({ c: r.cleared, s: r.shown.rows.length }))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
 // ── TOAST-LOOK1 + HUB-COUNTFIT1 + CAROUSEL-GLASS1 + MENU-GROUPIDLE1 (owner 2026-11-07, UX pass) ──
 console.log('UX pass: toasts, the hub countdown, the carousel\'s glass bars, the menu folding after a while')
 {

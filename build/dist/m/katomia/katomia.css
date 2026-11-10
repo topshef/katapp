@@ -3211,6 +3211,31 @@ body.spectating .kchat-send{ display:none; }   /* watchers can't message — ser
    top of the name, per the impersonation-mitigation steer (user 2026-08-21).
    Host rows (🎪) deliberately NOT tinted: host words are not Katomia's. */
 .kchat-row--kato{ background:rgba(201,180,88,.10); border-radius:6px; }
+/* MSG-CONCISE1 (owner 2026-11-10): the concise stream. "+N" on a settled/failed row opens the
+   rows it folded away; ×N marks a line said many times; the 🧹 pill (sticky, zero height so it
+   never pushes rows down) clears the stream on this device. */
+.kchat-fold{ font:600 11px/1.2 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; padding:1px 7px; margin-left:2px;
+  border-radius:999px; border:1px solid rgba(201,180,88,.65); background:rgba(201,180,88,.14); color:#7a6a2f;
+  cursor:pointer; vertical-align:1px; }
+.kchat-fold:hover{ background:rgba(201,180,88,.26); }
+.kchat-fold--open{ background:transparent; }
+.kchat-rep{ font-size:11px; color:#8a7a3f; margin-left:2px; white-space:nowrap; }
+.kchat-cleared{ display:flex; align-items:center; justify-content:center; gap:8px; padding:6px 4px; margin:2px 0 4px;
+  font-size:12px; color:#6b7385; border-bottom:1px dashed rgba(20,28,45,.14); }
+.kchat-cleared button{ font:600 12px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; padding:4px 10px; border-radius:999px;
+  border:1px solid rgba(47,111,237,.4); background:transparent; color:#2f6fed; cursor:pointer; }
+.kchat-send .kchat-clear{ background:transparent; color:inherit; border:1px solid rgba(20,28,45,.16); padding:0 9px; font-size:14px; opacity:.75; }
+.kchat-send .kchat-clear:hover{ opacity:1; }
+/* watchers have no message box, but may still want a clean slate: the row keeps just the 🧹 */
+body.spectating .kchat-send{ display:flex !important; justify-content:flex-end; border-top:none; padding:2px 2px 4px; }
+body.spectating .kchat-send input, body.spectating .kchat-send button[type=submit]{ display:none; }
+@media (prefers-color-scheme: dark){
+  .kchat-fold{ color:#e3cf7a; border-color:rgba(227,207,122,.5); background:rgba(227,207,122,.12); }
+  .kchat-rep{ color:#d8c36e; }
+  .kchat-cleared{ color:#9aa4b6; border-bottom-color:rgba(255,255,255,.12); }
+  .kchat-cleared button{ color:#8fb3ff; border-color:rgba(143,179,255,.45); }
+  .kchat-send .kchat-clear{ border-color:rgba(255,255,255,.2); }
+}
 
 /* ── BOARD-ACTIONMSG1 action rows (user 2026-08-04) ────────────────────────
    A player DOING something, not saying it. Same colour bar and avatar as their

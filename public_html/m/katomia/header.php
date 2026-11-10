@@ -344,6 +344,16 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
               <input type="checkbox" id="boardPrefPartyOnly" title="Show only accounts party to your proposal (follows the game's lock rule)">
               Party only
           </label>
+          <!-- MSG-CONCISE1 (owner 2026-11-10): how much the message stream says. Concise folds a
+               settled/failed transaction's rows into its outcome (+N opens them) and shows a
+               repeated line once; Everything is every row. The 🧹 pill in the stream clears. -->
+          <label class="board-settings-label">
+              Messages
+              <select id="boardPrefMsgDetail" title="Concise: a settled or failed deal is one line (tap +N on it to see its earlier messages), and a line repeated word for word shows once. Everything: every message, as it happened. The 🧹 at the top of the stream clears it on this device.">
+                <option value="concise">Concise</option>
+                <option value="full">Everything</option>
+              </select>
+          </label>
           <div class="app-menu-group" data-menu-group="view.chips">
             <button type="button" class="app-menu-grouphead" aria-expanded="false"><span class="app-menu-groupicon"></span><span class="app-menu-grouplabel">Chips</span><span class="app-menu-groupcaret" aria-hidden="true">▸</span></button>
             <div class="app-menu-groupbody"><div class="app-menu-groupinner"><div class="app-menu-grouppad">

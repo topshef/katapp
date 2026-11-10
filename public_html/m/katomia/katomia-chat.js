@@ -197,7 +197,7 @@
   function system(text, opts) {
     // SIGN-STRIKEMSG1 R3: opts.txid marks a tx-verdict echo — renderLog retires it
     // once the backend's persisted verdict row for the same txid is in state.chat.
-    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, linkText: (opts && opts.linkText) || null, txid: (opts && opts.txid) || null, system: true });
+    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, linkText: (opts && opts.linkText) || null, txid: (opts && opts.txid) || null, about: (opts && opts.about) || null, system: true });
     if (systemMsgs.length > 100) systemMsgs.shift();
     var hub = document.querySelector(".ring-hub");
     if (hub) {
@@ -316,6 +316,7 @@
       d.innerHTML = '<div class="kchat-drag" title="Drag to resize messages"></div>'
         + '<div class="kchat-dock-list"></div>'
         + '<form class="kchat-send" autocomplete="off">'
+        + '<button type="button" class="kchat-clear" title="Clear the messages so far — this circle, this device. Nothing is deleted: a line at the top brings them back." aria-label="Clear messages">\u{1F9F9}</button>'
         + '<input type="text" maxlength="280" placeholder="Message the table…" aria-label="Message">'
         + '<button type="submit" title="Send">➤</button></form>';
       var drag = d.querySelector(".kchat-drag");
@@ -482,6 +483,7 @@
         });
       }
       wireChatSend(d.querySelector(".kchat-send"));
+      d.querySelector(".kchat-clear").onclick = function (ev) { ev.preventDefault(); ev.stopPropagation(); clearNow(); };   // MSG-CONCISE1
       // CHAT-COMMITGATE1 (user 2026-08-05): a chat refused for missing commitment
       // used to be silently LOST with no path to the fix. On the backend's
       // chat-identity refusal: put the text back in the box and open the
@@ -589,6 +591,85 @@
     return null;
   }
 
+  /* ── MSG-CONCISE1 (owner 2026-11-10) ─────────────────────────────────────
+     "The message stream is quite verbose … once a transaction is settled
+     successfully, you don't really care about the deal struck information …
+     self-collapsing messages … collapses just down to the essential … maybe we
+     just need a clear button." Two things, both display-only (nothing is deleted;
+     the backend's game.chat is untouched):
+
+     CONCISE (View → Messages, the default; "Everything" shows every row as before)
+       · A transaction with an outcome is ONE line: its 🔒 deal-struck row, the
+         signatures-needed / signed / issue rows, and a failed deal's "⚠️ Why it
+         did not settle" and "🔁 Deal reloaded" fold into the ✅ / ⌛ row, which
+         gets a small "+N" to open them again. A failed line keeps the reason
+         ("· still unsigned by …"). Until the outcome arrives every row shows —
+         you need them while signing.
+       · A system line repeated word for word (the "Welcome to …" a circle says
+         to every arrival) shows once, at its latest, with ×N.
+     CLEAR (🧹 beside the message box, both modes)
+       · hides everything up to now in this circle, on this device; a "N cleared ·
+         Show" line at the top brings it back. Stored per circle in localStorage
+         (katomiaChatClear:<circle>). It sits in the send row, not over the stream:
+         a pill floating on the list covered the top row's words. */
+  var TXID_RE = /0\.0\.\d+@\d+\.\d+/;
+  var FAIL_AFTERMATH = /^(⚠️ Why it did not settle|🔁 Deal reloaded)/;
+  var expandedTx = new Set();          // outcome groups the reader opened ("+N")
+  function msgDetail() { return document.body.dataset.msgDetail === "full" ? "full" : "concise"; }
+  function msgTxOf(m) {
+    if (m.about) return m.about;
+    if (!m.system) return null;
+    if (m.txid) return m.txid;          // the board's own verdict echo
+    var x = TXID_RE.exec((m.linkText || "") + " " + (m.text || ""));
+    return x ? x[0] : null;
+  }
+  function msgTs(m) { var t = +new Date(m.ts); return isNaN(t) ? 0 : t; }
+  function conciseView(chat) {
+    var tags = new Array(chat.length), outcome = {}, lastFail = null, i;
+    for (i = 0; i < chat.length; i++) {
+      var m = chat[i], t = msgTxOf(m);
+      if (m.system && t && /^[✅⌛]/.test(m.text || "")) {
+        outcome[t] = i;
+        if (/^⌛/.test(m.text)) lastFail = { t: t, ts: msgTs(m) };
+      }
+      // a failed deal's aftermath carries no txid; it follows the ⌛ row within seconds
+      if (!t && m.system && lastFail && FAIL_AFTERMATH.test(m.text || "") && msgTs(m) - lastFail.ts < 120000) t = lastFail.t;
+      tags[i] = t;
+    }
+    var lastSame = {};
+    for (i = 0; i < chat.length; i++)
+      if (chat[i].system && !tags[i] && !chat[i].link && chat[i].text) lastSame[chat[i].text] = i;
+    var fold = {}, reps = {}, why = {}, keep = [];
+    for (i = 0; i < chat.length; i++) {
+      var mm = chat[i], tx = tags[i], oi = tx != null ? outcome[tx] : undefined;
+      if (oi !== undefined && oi !== i) {
+        fold[oi] = (fold[oi] || 0) + 1;
+        var w = /^⚠️ Why it did not settle:\s*(.+)$/.exec(mm.text || "");
+        if (w) why[oi] = w[1];   // a folded failure keeps its reason on the ⌛ line
+        if (!expandedTx.has(tx)) continue;
+      } else if (mm.system && !tx && !mm.link && mm.text && lastSame[mm.text] !== i) {
+        reps[lastSame[mm.text]] = (reps[lastSame[mm.text]] || 1) + 1;
+        continue;
+      }
+      keep.push(i);
+    }
+    return keep.map(function (k) {
+      var row = chat[k];
+      if (!fold[k] && !reps[k]) return row;
+      var o = {}; for (var key in row) o[key] = row[key];
+      if (fold[k]) { o._fold = fold[k]; o._foldTx = tags[k]; o._open = expandedTx.has(tags[k]); }
+      if (why[k] && !o._open) o.text = String(o.text || "") + " \u00B7 " + why[k];
+      if (reps[k]) o._rep = reps[k];
+      return o;
+    });
+  }
+  function clearKey() { return "katomiaChatClear:" + (circleSlug() || "?"); }
+  function clearedAt() { try { return +(localStorage.getItem(clearKey()) || 0); } catch (e) { return 0; } }
+  function rerenderLog() {
+    var st = (typeof state !== "undefined" && state) || null;
+    renderLog((st && Array.isArray(st.chat)) ? st.chat : []);
+  }
+
   function renderLog(chat) {
     // system entries ride along, ordered by time.
     // SIGN-STRIKEMSG1 R3: the backend persists the ✅/⌛ tx verdict into game.chat —
@@ -606,13 +687,22 @@
       if (sys.length)
         chat = chat.concat(sys).sort(function (a, b) { return new Date(a.ts) - new Date(b.ts); });
     }
+    // MSG-CONCISE1: the reader's 🧹 clear (per circle, this device), then the concise fold
+    lastLogTs = chat.reduce(function (mx, m) { var t = msgTs(m); return t > mx ? t : mx; }, 0);
+    var cut = clearedAt(), meta = { total: chat.length, cleared: 0 };
+    if (cut) {
+      var after = chat.filter(function (m) { return msgTs(m) > cut; });
+      meta.cleared = chat.length - after.length;
+      chat = after;
+    }
+    if (msgDetail() === "concise") chat = conciseView(chat);
     var p = panel();
     var count = p && p.querySelector(".kchat-panel-count");
     if (count) count.textContent = chat.length ? String(chat.length) : "";
     // BOARD-CHAT1 R2: the desktop panel and the dock (split AND messages views, VIEW-MSGS2)
     // get the same rows; CSS decides which one the device can see.
-    renderInto(p && p.querySelector(".kchat-panel-list"), chat);
-    renderInto(document.querySelector("#boardChatDock .kchat-dock-list"), chat);
+    renderInto(p && p.querySelector(".kchat-panel-list"), chat, meta);
+    renderInto(document.querySelector("#boardChatDock .kchat-dock-list"), chat, meta);
     autoFitDock();
   }
 
@@ -859,7 +949,8 @@
       ts: msg.action.ts || Date.now(),
       text: msg.message || "",
       action: msg.action,
-      playerId: msg.action.actor
+      playerId: msg.action.actor,
+      about: msg.about || null       // MSG-CONCISE1: the txid this action belongs to, if any
     });
     if (systemMsgs.length > 100) systemMsgs.shift();
     pulseAvatar(msg.action.actor);           // the actor's wedge avatar swells
@@ -868,7 +959,26 @@
     return true;
   }
 
-  function renderInto(list, chat) {
+  // MSG-CONCISE1: after a 🧹 clear, the first line of the stream says so and offers them back
+  function clearedRow(n) {
+    var r = document.createElement("div");
+    r.className = "kchat-cleared";
+    r.appendChild(document.createTextNode("\u{1F9F9} " + n + " earlier message" + (n > 1 ? "s" : "") + " cleared "));
+    var b = document.createElement("button");
+    b.type = "button";
+    b.textContent = "Show";
+    b.title = "Show the messages you cleared from this circle";
+    b.onclick = function (ev) { ev.stopPropagation(); try { localStorage.removeItem(clearKey()); } catch (e) {} rerenderLog(); };
+    r.appendChild(b);
+    return r;
+  }
+  var lastLogTs = 0;   // the newest row's time at the last render — what 🧹 clears up to
+  function clearNow() {
+    try { localStorage.setItem(clearKey(), String(lastLogTs || Date.now())); } catch (e) {}
+    rerenderLog();
+  }
+
+  function renderInto(list, chat, meta) {
     if (!list) return;
     // Pinned-to-bottom is now a TRACKED state, not a measurement (user 2026-08-05:
     // "messages appearing off screen, not scrolling to the bottom"). Measuring at
@@ -893,17 +1003,24 @@
     // so "new" = rows past the UNTRIMMED chat length this list saw last time
     // (untrimmed so the cap-full list keeps animating); recreated old rows
     // appear instantly. First render (backfill) animates nothing.
-    var prevTotal = +(list.dataset.kcount || 0);
     var prevScroll = list.scrollTop;
+    // MSG-CONCISE1: "new" is now by row id, not by count — in the concise view a settled
+    // row folds its deal-struck row away, so the count can stay the same while a row is new.
+    // A burst (the backlog, or 🧹 Show bringing rows back) is adopted without animating.
+    var keyOf = function (m) { return String(m.id) + "|" + msgTs(m); };
+    var seenBefore = list._kseen || null, fresh = 0;
+    if (seenBefore) chat.slice(-MAX_LOG).forEach(function (m) { if (!seenBefore.has(keyOf(m))) fresh++; });
+    if (fresh > 6) fresh = 0;
+    list._kseen = new Set(chat.slice(-MAX_LOG).map(keyOf));
     list.innerHTML = "";
+    if (meta && meta.cleared) list.appendChild(clearedRow(meta.cleared));
     if (!chat.length) {
       var e = document.createElement("div");
       e.className = "kchat-full-empty";
-      e.textContent = "No messages yet.";
+      e.textContent = meta && meta.cleared ? "All clear — new messages will show here." : "No messages yet.";
       list.appendChild(e);
       return;
     }
-    var shown = Math.min(chat.length, MAX_LOG);
     chat.slice(-MAX_LOG).forEach(function (m, idx) {
       // Row anatomy R2 (user 2026-08-03): full-height colour BAR (not a dot — same
       // ownership cue as chip sleeves and bubble bars), the player's AVATAR on their
@@ -1054,6 +1171,26 @@
         a2.textContent = m.linkText || "↗";
         main.append(" ", a2);
       }
+      // MSG-CONCISE1: "+N" opens the rows this outcome folded away; "−" folds them again
+      if (m._fold) {
+        var fb = document.createElement("button");
+        fb.type = "button";
+        fb.className = "kchat-fold" + (m._open ? " kchat-fold--open" : "");
+        fb.textContent = m._open ? "\u2212" : "+" + m._fold;
+        fb.title = m._open ? "Fold this transaction's messages away" : "Show the " + m._fold + " earlier message" + (m._fold > 1 ? "s" : "") + " about this transaction";
+        fb.setAttribute("aria-expanded", m._open ? "true" : "false");
+        (function (tx) {
+          fb.onclick = function (ev) { ev.stopPropagation(); if (expandedTx.has(tx)) expandedTx.delete(tx); else expandedTx.add(tx); rerenderLog(); };
+        })(m._foldTx);
+        main.append(" ", fb);
+      }
+      if (m._rep) {
+        var rp = document.createElement("span");
+        rp.className = "kchat-rep";
+        rp.textContent = "\u00D7" + m._rep;
+        rp.title = "Said " + m._rep + " times — shown once";
+        main.append(" ", rp);
+      }
       // BOARD-ACTIONMSG1 (doc §5): hovering an action row lights the same pair on
       // the board. Free — the chips already carry this exact triple, so this is
       // the board's own highlightTradePair with no board-side change at all.
@@ -1065,7 +1202,7 @@
         row.onmouseleave = function () { try { highlightTradePair(act.assetId, act.from, act.to, false); } catch (e) {} };
       }
       row.appendChild(main);
-      if (prevTotal && (chat.length - shown + idx) >= prevTotal) row.classList.add("kchat-row--in");
+      if (fresh && !seenBefore.has(keyOf(m))) row.classList.add("kchat-row--in");
       list.appendChild(row);
     });
     // 01a1ed32: a wrapped (multi-line) row promotes its avatar to double height —
@@ -1091,7 +1228,7 @@
     // row is revealed (smooth only when pinned to the bottom and something new
     // actually arrived — reader scrolled up = don't yank them).
     if (atBottom) {
-      if (prevTotal && chat.length > prevTotal && list.scrollTo) {
+      if (fresh && list.scrollTo) {
         list.scrollTop = Math.min(prevScroll, list.scrollHeight);
         requestAnimationFrame(function () { list.scrollTo({ top: list.scrollHeight, behavior: "smooth" }); });
       } else {
@@ -1521,6 +1658,7 @@
     reposition: reposition,
     setMode: setMode,
     system: system,
+    clear: clearNow,                // MSG-CONCISE1 — the 🧹 (this circle, this device)
     action: action,                 // BOARD-ACTIONMSG1 — structured player actions
     canRender: actionRenderable,    // …so the network layer knows to suppress the toast
     get live() { return live.length; },
