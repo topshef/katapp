@@ -8325,6 +8325,11 @@ function ringFeltNumber(seg, g, NS, style, band){
   const bind = ringBindBadge(seg.account).trim()
   const domain = boardXProofDomain(hac)
   const tail = [lock + bind + pick, domain ? domain.text : ""].filter(Boolean).join("  ")
+  // LOCKONE2 (owner 2026-11-10, "keep just the large one"): where the big padlock sits on a locked
+  // store (ring11+, as LOCKONE1 decided for the corner badge) this line no longer DRAWS its small 🔒.
+  // The layout still counts it (tail above), so every block keeps the size and spot it had: without
+  // the line a locked block grew and its text box (taller than its digits) crossed the banner.
+  const tailShown = [(ring11() ? "" : lock) + bind + pick, domain ? domain.text : ""].filter(Boolean).join("  ")
   const tailEm = tail ? 0.36 : 0                     // its size, relative to the digits
   const box = fs => {
     const w = (grid.cols * FELT_EM.adv + (grid.cols - 1) * FELT_EM.track) * fs
@@ -8419,14 +8424,14 @@ function ringFeltNumber(seg, g, NS, style, band){
     }
     grp.appendChild(t)
   })
-  if(tail){
+  if(tailShown){
     const t = document.createElementNS(NS, "text")
     t.setAttribute("class", "ring-feltnum-tail")
     t.setAttribute("x", spot.x)
     t.setAttribute("y", (y + ((grid.rows - 1) * FELT_EM.lead + FELT_EM.digit + 0.22 + tailEm * 0.8) * fs).toFixed(1))
     t.setAttribute("text-anchor", "middle")
     t.setAttribute("font-size", (tailEm * fs).toFixed(1))
-    t.textContent = tail
+    t.textContent = tailShown
     if(domain?.idn) t.appendChild(Object.assign(document.createElementNS(NS, "title"), { textContent: domain.note }))
     grp.appendChild(t)
   }
