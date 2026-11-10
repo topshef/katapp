@@ -52,6 +52,16 @@
   // #boardRoot: renderRingBoard() calls root.replaceChildren() on every paint, so a layer
   // parked inside would be destroyed at exactly the moment a new message arrives. Same
   // reasoning as the existing #game.board-linelayer passthrough.
+  // KPAYLINK2: a HashScan transaction link → the kpay.uk receipt (txid in the hyphen form,
+  // 0.0.x-secs-nanos, which kpay.uk answers directly). Anything else passes through unchanged.
+  function kchatReceiptLink(href) {
+    var m = /^https:\/\/hashscan\.io\/(mainnet|testnet)\/transaction\/([^?#]+)$/i.exec(String(href || ""));
+    if (!m) return href;
+    var id; try { id = decodeURIComponent(m[2]); } catch (e) { return href; }
+    if (!/^0\.0\.\d+[@-]\d+[.-]\d+$/.test(id)) return href;
+    return "https://kpay.uk/tx/" + m[1].toLowerCase() + "/" + id.replace("@", "-").replace(/\.(\d+)$/, "-$1");
+  }
+  window.kchatReceiptLink = kchatReceiptLink;   // for qa/board
   function host() { return document.getElementById("boardChatLayer"); }
 
   // Board pixels -> viewport pixels. Anchors are recorded relative to the board's own
@@ -1023,7 +1033,12 @@
       if (m.system && m.link) {
         // the WHOLE payload (e.g. the txid) is the link, not a fiddly arrow (user 2026-08-03)
         var a2 = document.createElement("a");
-        a2.href = m.link;
+        // KPAYLINK2 (owner 2026-11-10: "I'm not seeing the receipt link coming up on lab 1"): the
+        // backend saves the settled-verdict row with a HashScan link (hbarlive_hts katomia.js
+        // txVerdictChatRow), and that saved row replaces the board's own kpay.uk echo. Every
+        // HashScan TRANSACTION link shown here opens the kpay.uk receipt instead, so rows saved
+        // before the backend changes read right too. Accounts and tokens stay on HashScan.
+        a2.href = kchatReceiptLink(m.link);
         // TABTARGET1 (user 2026-08-19): circle-to-circle links (KAT-BREAKOUT1's parent<->
         // child breadcrumbs, always a RELATIVE circle id) were opening a fresh "_blank" tab
         // on every click — dozens of tabs for the same circle after a few hops. Target the
