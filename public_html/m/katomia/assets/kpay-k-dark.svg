@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg"
+     width="270" height="256" viewBox="0 0 270 256">
+  <!-- DARK-BOARD2 (owner 2026-11-10): kpay-k.svg for dark mode — the K in the board's dark-mode
+       text colour on no square. A separate file, not a CSS invert of the light one: Chrome's
+       "darken websites" repaint re-inverts filtered images, which brought the white square back. -->
+  <g fill="#e7ecf4" shape-rendering="geometricPrecision">
+    <rect x="38" y="28" width="55" height="200"/>
+    <path d="M176 28H238L155 128L238 228H176L93 128Z"/>
+  </g>
+</svg>

@@ -13,7 +13,7 @@
        fade-in before first paint). -->
   <script src="kfade.js?v=1793403648"></script>
   <link rel="stylesheet" href="katomia.css?v=1794231726" />
-<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794271244" />
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794274072" />
   <title>katomia — board</title>
 </head>
 
@@ -1384,7 +1384,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "925d5d2"
+  window.KFLOW_COMMIT = "3195e34"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1436,13 +1436,13 @@ window.katomiaNet = (() => {
      present here) didn't exist on the board page at all: no katomia:build, no
      wc:version, and boardDirectSign()'s window.kdiag?.() calls were silent
      no-ops. Ring16 direct-sign attempts left zero trace in kdiag. -->
-<script src="katomia-modals.js?v=1794054611"></script>
+<script src="katomia-modals.js?v=1794273793"></script>
 <script src="katomia-render.js?v=1794231726"></script>
 <!-- TXSTATUS-CONSOLIDATE1: the tx/wallet status controller. Must load BEFORE
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->
 <script src="katomia-txstatus.js?v=1793403648"></script>
-<script src="katomia-board.js?v=1794270890"></script>
+<script src="katomia-board.js?v=1794274043"></script>
 <script src="katomia-carousel.js?v=1793403648"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
 <script src="katomia-tickets.js?v=1793403648"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 

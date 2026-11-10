@@ -2303,7 +2303,10 @@ function renderRingBoard(root){
       basketChips.forEach(c => wrap.appendChild(c))
       storeChips.forEach(c => wrap.appendChild(c))
 
-      if(account.mode === "lock"){
+      // LOCKONE1 (owner 2026-11-10, with screenshot: "the lock ring shows 2 padlocks … keep just
+      // the large one"): ring11+ draws the BIG 🔒 at the store centroid, so this small badge at
+      // the store's outer reach only doubled it. Older skins, which have no big lock, keep it.
+      if(account.mode === "lock" && !ring11()){
         // etched skins: 🔒 badge used to ride the outer box — anchor it at the
         // store zone's outer reach instead
         const badge = document.createElement("div")
@@ -2419,7 +2422,10 @@ function renderRingBoard(root){
     // only rewrites .js/.css, not images, and browsers resolve relative URLs
     // against the CURRENT PATH, not the server-rewritten one. Absolute path
     // sidesteps the whole class of bug instead of chasing every extension.
-    kimg.src = (window.KBASE||"") + "/assets/kpay-k.svg"
+    // DARK-BOARD2 (owner 2026-11-10, "should be inverted not in white square"): dark mode gets
+    // its own file (light K, no square) — a CSS invert of the light one is a filtered image, and
+    // Chrome's "darken websites" repaint flips filtered images back.
+    kimg.src = (window.KBASE||"") + (boardDarkFelt() ? "/assets/kpay-k-dark.svg" : "/assets/kpay-k.svg")
     kimg.alt = ""
     hub.appendChild(kimg)
   } else if(boardSkin === "ring11"){
@@ -7414,6 +7420,86 @@ function boardAccountSignState(hac){
 function boardLockBarParty(account, accounts, sign, locked){
   return !sign && !locked && boardInMyParty(account, accounts)
 }
+// ── DARK-VEIL1 (owner 2026-11-10, phone screenshot at 01:02: "masking outside signing area
+// should be dark not light") ──
+// The signing spotlight's shade got its soft edge from a CSS filter: blur(14px) over a
+// full-screen path. On the owner's phone, Chrome's own "darken websites" repaint ran on top of
+// our dark theme and flipped that dark shade to light grey: their veil, (189,188,186), is
+// rgba(28,22,12,.82) with its lightness inverted, over our untouched dark felt. Unfiltered SVG
+// paint (felt numbers, ring strokes) came through as drawn; only the filtered layer was flipped
+// (Chrome treats a filtered layer like an image). So the same soft edge is now a radial gradient:
+// no filter for the repaint to flip, and far cheaper on a phone than a 14px blur over the whole
+// screen. The stops follow the edge a 14px Gaussian blur made (sigma 14, out to 3 sigma).
+// Returns a <g class="ring-focusshade …"> holding its own gradient, so the classes (--in, --out,
+// --wipe…) and an animation delay apply to the group exactly as they did to the old path.
+const BOARD_SHADE_RGBA = [28, 22, 12, .82]   // was .ring-focusshade's fill (kept there too)
+const BOARD_SHADE_SIGMA = 14
+const BOARD_SHADE_EDGE = [[-3, .00135], [-2, .0228], [-1.5, .0668], [-1, .1587], [-.5, .3085],
+  [0, .5], [.5, .6915], [1, .8413], [1.5, .9332], [2, .9772], [3, .99865]]   // [sigma, Phi(sigma)]
+let boardShadeSeq = 0
+function boardFocusShade(NS, g, hrx, hry, B, cls){
+  const [r, gC, b, a] = BOARD_SHADE_RGBA
+  const id = "kFocusShade" + (++boardShadeSeq)
+  const R = hrx + 3 * BOARD_SHADE_SIGMA
+  const grad = document.createElementNS(NS, "radialGradient")
+  grad.setAttribute("id", id)
+  grad.setAttribute("gradientUnits", "userSpaceOnUse")
+  grad.setAttribute("cx", g.cx)
+  grad.setAttribute("cy", g.cy)
+  grad.setAttribute("r", R)
+  // the hole is an ellipse: squash the circle to it about the centre
+  grad.setAttribute("gradientTransform",
+    `translate(${g.cx} ${g.cy}) scale(1 ${hry / hrx}) translate(${-g.cx} ${-g.cy})`)
+  for(const [s, phi] of BOARD_SHADE_EDGE){
+    const stop = document.createElementNS(NS, "stop")
+    stop.setAttribute("offset", Math.max(0, (hrx + s * BOARD_SHADE_SIGMA) / R))
+    stop.setAttribute("stop-color", `rgb(${r}, ${gC}, ${b})`)
+    stop.setAttribute("stop-opacity", (a * phi).toFixed(4))
+    grad.appendChild(stop)
+  }
+  const grp = document.createElementNS(NS, "g")
+  grp.setAttribute("class", cls + " ring-focusshade--grad")
+  const defs = document.createElementNS(NS, "defs")
+  defs.appendChild(grad)
+  grp.appendChild(defs)
+  const path = document.createElementNS(NS, "path")
+  path.setAttribute("d", `M ${-B} ${-B} H ${g.W + B} V ${g.H + B} H ${-B} Z`)
+  path.style.fill = `url(#${id})`   // inline: beats .ring-focusshade's flat fill
+  grp.appendChild(path)
+  return grp
+}
+
+// ── LOCKTUBE1 (owner 2026-11-10: "make the lock ring more like a round profile bar, some depth
+// and glow when lit") ────────────────────────────────────────────────────────────────────────
+// The ring's lock bar is a 14px stroke along an oval, so no gradient can follow its cross-section.
+// Concentric strokes on the SAME path can: the bar's colour darkened at full width (the edges sit
+// lower), the colour itself narrower, a lighter core, and a thin bright line down the middle (the
+// crown catching the light) — a rounded bar lit from the front. The tube sits right after its arc,
+// so an optimistic lock that only re-classes the arc still recolours it (CSS sibling selectors).
+// pointer-events:none, so the
+// arc underneath still takes hover and taps. The GLOW for a lit bar is CSS on the arc itself
+// (katomia-board.css LOCKTUBE1). Signing arcs are lights with their own glow: no tube on them.
+function boardArcTube(arc, NS){
+  const d = arc.getAttribute("d")
+  if(!d) return
+  const g = document.createElementNS(NS, "g")
+  g.setAttribute("class", "ring-locktube")
+  g.setAttribute("aria-hidden", "true")
+  // shade with the bar's OWN colour: a darker edge, the tone, a lighter core (a grey glass tube
+  // over the tone, the first cut, drowned the player colours). The orange states (hover, the
+  // Lock preview, locked) are CSS on the sibling selector .ring-lockarc… + .ring-locktube.
+  const tone = boardHexToRgb(arc.style.getPropertyValue("--tstrip").trim())
+  g.style.setProperty("--tstrip", boardHex(tone))
+  g.style.setProperty("--tube-edge", boardHex(boardMixRgb(tone, [0, 0, 0], 0.30)))
+  g.style.setProperty("--tube-core", boardHex(boardMixRgb(tone, [255, 255, 255], 0.24)))
+  for(const k of ["edge", "body", "core", "crown"]){
+    const p = document.createElementNS(NS, "path")
+    p.setAttribute("d", d)
+    p.setAttribute("class", "ring-locktube-" + k)
+    g.appendChild(p)
+  }
+  arc.after(g)
+}
 function boardLockBarTone(account, party){
   return boardRingToneColour(getPlayerColour(account.playerId), party)
 }
@@ -7786,6 +7872,7 @@ function ringFelt(segs, g){
       // stroke is per-element and both felt svgs are pointer-events:none containers.
       else if(locked && (boardSkin === "ring7" || ring8())) segTop(seg).appendChild(arc)
       else segBase(seg).appendChild(arc)
+      if(!seg.sign && ring16()) boardArcTube(arc, NS)   // LOCKTUBE1: right after its arc, same layer
     })
   } else {
     const oval = document.createElementNS(NS, "ellipse")
@@ -7938,14 +8025,8 @@ function ringFelt(segs, g){
     const thumbH = Math.min(52, Math.max(26, 0.034 * Math.min(g.W, g.H) + 13))
     const m = thumbH * 1.2
     const hrx = g.rx + m, hry = g.ry + m, B = 48
-    const shade = document.createElementNS(NS, "path")
-    shade.setAttribute("d",
-      `M ${-B} ${-B} H ${g.W + B} V ${g.H + B} H ${-B} Z ` +
-      `M ${g.cx - hrx} ${g.cy} ` +
-      `a ${hrx} ${hry} 0 1 0 ${hrx * 2} 0 ` +
-      `a ${hrx} ${hry} 0 1 0 ${-hrx * 2} 0 Z`)
-    shade.setAttribute("fill-rule", "evenodd")
-    shade.setAttribute("class", "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
+    const shade = boardFocusShade(NS, g, hrx, hry, B,
+      "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
     ;(over || top || svg).appendChild(shade)
     window.__boardWipeUntil = 0   // spotlight is back on — any pending wipe is moot
   } else if(wipeActive || window.__boardShadeOn){
@@ -7970,14 +8051,7 @@ function ringFelt(segs, g){
     const elapsedMs = Math.max(0, window.__boardWipeDurMs - (window.__boardWipeUntil - wipeNow))
     const thumbH2 = Math.min(52, Math.max(26, 0.034 * Math.min(g.W, g.H) + 13))
     const m2 = thumbH2 * 1.2, hrx2 = g.rx + m2, hry2 = g.ry + m2, B2 = 48
-    const fade = document.createElementNS(NS, "path")
-    fade.setAttribute("d",
-      `M ${-B2} ${-B2} H ${g.W + B2} V ${g.H + B2} H ${-B2} Z ` +
-      `M ${g.cx - hrx2} ${g.cy} ` +
-      `a ${hrx2} ${hry2} 0 1 0 ${hrx2 * 2} 0 ` +
-      `a ${hrx2} ${hry2} 0 1 0 ${-hrx2 * 2} 0 Z`)
-    fade.setAttribute("fill-rule", "evenodd")
-    fade.setAttribute("class", "ring-focusshade " + window.__boardWipeClass)
+    const fade = boardFocusShade(NS, g, hrx2, hry2, B2, "ring-focusshade " + window.__boardWipeClass)
     fade.style.animationDelay = `-${elapsedMs}ms`   // resume mid-fade, not restart opaque
     ;(over || top || svg).appendChild(fade)
   } else {

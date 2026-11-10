@@ -1783,6 +1783,10 @@ body[data-signtwilight="1"] .ring-hub-count--signed{ color: #1e7047; }
   pointer-events: none;
   filter: blur(14px);
 }
+/* DARK-VEIL1 (2026-11-10): the shade is now a group whose path is filled with a radial gradient
+   shaped like this blur's edge (katomia-board.js boardFocusShade). No filter: Chrome's "darken
+   websites" repaint flips filtered layers, which turned this veil light grey on a phone. */
+.ring-focusshade.ring-focusshade--grad{ filter: none; }
 .ring-footer-play--on{
   background: #2f2a1e;
   color: #fff;
@@ -2808,7 +2812,16 @@ body[data-board-skin="carousel"] .board-trailline--offstage{ visibility: hidden;
   .ring-hub-k{ color: rgba(255,255,255,.07); }
   .ring-hub{ background: #1f232a; border-color: #4a6487; color: #c3cde0; }
   [data-board-fam~="v10"] .ring-hub{ border-color: #3a3f48; }
-  .ring-hub-count{ background: rgba(31,35,42,.92); color: #e7ecf4; }
+  .ring-hub-count{ background: rgba(31,35,42,.92); color: #f0b84a; }
+  /* DARK-BOARD3: the signed / failed tints must survive the line above (same specificity, later) */
+  .ring-hub-count--signed{ color: #5fd39a; }
+  body[data-signtwilight="1"] .ring-hub-count--signed{ color: #3fae78; }
+  .ring-hub-count--failed{ color: #ff7a75; }
+  /* DARK-BOARD3: HUB-COUNTFIT1's disc was still a white face in dark mode (owner's 01:02 screenshot) */
+  .ring-hub.ring-hub--counting > .ring-hub-count{
+    background: radial-gradient(circle at 50% 40%, rgba(44,37,24,.98) 55%, rgba(30,26,18,.96));
+    box-shadow: inset 0 0 0 1px rgba(245,166,35,.28), 0 1px 3px rgba(0,0,0,.45);
+  }
   .ring-hub-count--signed{ color: #5fd08a; }
   .ring-avail--mine .ring-head-label{ background: rgba(22,24,28,.7); }
   .ring-box.drag-over{ background: rgba(255,255,255,.08); }
@@ -2874,4 +2887,44 @@ body[data-board-skin="carousel"] .board-trailline--offstage{ visibility: hidden;
   body.board-page .app-menu-net button{ color: #c3cde0; }
   body.board-page .app-menu-net button:hover{ background: rgba(255,255,255,.07); }
   body.board-page .app-menu-kchanges--on{ background: #3a3412; }
+}
+/* DARK-BOARD2 (owner 2026-11-10: "fix the k logo. Should be inverted not in white square"): dark
+   mode loads assets/kpay-k-dark.svg (a light K, no square) — katomia-board.js picks the file. Not a
+   CSS invert: Chrome's "darken websites" repaint flips filtered images back to the white square. */
+@media (prefers-color-scheme: dark){
+  /* DARK-VEIL1: the opaque bed under each signing light was near-white; on dark felt it read as
+     a pale strip (the owner's 01:02 screenshot, the half-dim "no signature needed" arc) */
+  .ring-signarc-under{ stroke: #1c1f24; }
+}
+
+/* ── LOCKTUBE1 (owner 2026-11-10): the lock ring as a rounded bar, with a glow when lit ──────────
+   katomia-board.js boardArcTube lays four strokes on each ring16 lock arc's own path, in the bar's
+   own colour (--tstrip, --tube-edge darker, --tube-core lighter, set per bar): edge at the full 14px,
+   the tone at 10, the core at 5, a white crown at 1.4. The orange states follow the arc through the
+   sibling selector (the tube is the arc's next sibling); !important because the per-bar colours
+   are inline custom properties. No blur on these strokes (DARK-VEIL1: Chrome's "darken websites"
+   repaint flips filtered layers). */
+.ring-locktube{ pointer-events: none; }
+.ring-locktube path{ fill: none; stroke-linecap: butt; pointer-events: none; }
+.ring-locktube-edge { stroke: var(--tube-edge, rgba(0,0,0,.2)); stroke-width: 14; }
+.ring-locktube-body { stroke: var(--tstrip, transparent);     stroke-width: 10; }
+.ring-locktube-core { stroke: var(--tube-core, rgba(255,255,255,.2)); stroke-width: 5; opacity: .9; }
+.ring-locktube-crown{ stroke: rgba(255,255,255,.45); stroke-width: 1.4; }
+.ring-lockarc--locked + .ring-locktube{ --tube-edge: #b8740e !important; --tstrip: #f5a623 !important; --tube-core: #ffcd6b !important; }
+[data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover + .ring-locktube,
+.ring-lockarc.ring-lockpreview + .ring-locktube{ --tube-edge: #d9a868 !important; --tstrip: #f8d5a5 !important; --tube-core: #fde7c9 !important; }
+@media (prefers-color-scheme: dark){
+  .ring-locktube-crown{ stroke: rgba(255,255,255,.38); }
+  [data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover + .ring-locktube,
+  .ring-lockarc.ring-lockpreview + .ring-locktube{ --tube-edge: #7d5418 !important; --tstrip: #b9802c !important; --tube-core: #d8a04a !important; }
+}
+/* lit = locked (solid orange) and the Lock preview: the bar glows in its own colour. The bevel on
+   YOUR bars (LOCKBEVEL1) is a filter too, so for those the glow is appended to it, not instead. */
+[data-board-fam~="v16"] .ring-lockarc--locked:not(.ring-signarc){ filter: drop-shadow(0 0 5px rgba(245,166,35,.75)); }
+[data-board-fam~="v16"] .ring-lockarc.ring-lockpreview{ filter: drop-shadow(0 0 4px rgba(245,166,35,.5)); }
+body[data-lock-bevel="1"][data-board-fam~="v16"]:not([data-signing="1"]) .ring-lockarc--mine.ring-lockarc--locked:not(.ring-signarc):not(.carousel-rim){
+  filter: url(#kLockBevel) drop-shadow(0 0 5px rgba(245,166,35,.75));
+}
+body[data-lock-bevel="1"][data-board-fam~="v16"]:not([data-signing="1"]) .ring-lockarc--mine.ring-lockpreview:not(.ring-signarc):not(.carousel-rim){
+  filter: url(#kLockBevel) drop-shadow(0 0 4px rgba(245,166,35,.5));
 }

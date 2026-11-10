@@ -385,9 +385,30 @@ function katomiaModalDiagSequence(type){
   }, 500)
 }
 
+// DARK-DIAG1 (owner 2026-11-10, a light veil in dark mode on a phone): which dark is this device
+// showing — the page's own (prefers dark + the page's color-scheme tag), or Chrome's "darken
+// websites" repaint of the light page? Chrome reports the system colour `canvas` as
+// rgb(18, 18, 18) instead of white when that repaint setting is on (checked in Chromium with
+// forceDarkModeEnabled). Repaint on + prefersDark false = the light page is being darkened by
+// the browser, and none of our dark CSS is running.
+function katomiaThemeProbe(){
+  try{
+    const d = document.createElement("div")
+    d.style.cssText = "display:none;background-color:canvas;color-scheme:light"
+    document.documentElement.appendChild(d)
+    const canvas = getComputedStyle(d).backgroundColor
+    d.remove()
+    return {
+      prefersDark: matchMedia("(prefers-color-scheme: dark)").matches,
+      chromeAutoDark: canvas !== "rgb(255, 255, 255)",
+      meta: document.querySelector('meta[name="color-scheme"]')?.content || null,
+    }
+  }catch(_){ return null }
+}
+
 // log the running build once at load so every session records its version,
 // even if the modal is never opened
-katomiaDiagSend("katomia:build", { jsBuild: KATOMIA_JS_BUILD, cssBuildApplied: readAppliedCssBuild(), href: location.href })
+katomiaDiagSend("katomia:build", { jsBuild: KATOMIA_JS_BUILD, cssBuildApplied: readAppliedCssBuild(), href: location.href, theme: katomiaThemeProbe() })
 
 // JS-ERRORS1 (owner 2026-11-07, a blank circle on lab1 that left no trail): an uncaught error or
 // rejected promise used to reach nobody — the diag log showed the page loading and then nothing.
