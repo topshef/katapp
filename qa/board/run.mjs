@@ -1567,6 +1567,33 @@ console.log('ASSET-AUTO1: auto = the assets that moved in the last 14 days (six 
   await page.close()
 }
 
+// ── NAV-NET1 + KNAV-SWITCH1 (owner 2026-11-10, navigation pass part 2) ──
+console.log('NAV-NET1 + KNAV-SWITCH1: the pill names the network and opens your tables')
+{
+  const { page, errs } = await open('')
+  const r = await page.evaluate(async () => {
+    window.__katomiaNetwork = 'testnet'
+    window.boardRenderChat?.()
+    await new Promise(res => setTimeout(res, 50))
+    const p = document.getElementById('boardAudience')
+    const tag = p?.querySelector('.kaud-net')
+    const before = { hidden: !!p?.hidden, role: p?.getAttribute('role'), tag: tag?.textContent || '', net: tag?.dataset.net || '', bg: tag ? getComputedStyle(tag).backgroundColor : '' }
+    p?.click()
+    await new Promise(res => setTimeout(res, 400))
+    const sh = document.getElementById('knavSheet')
+    const open = { shown: !!sh && !sh.hidden, expanded: p?.getAttribute('aria-expanded'), foot: sh?.querySelector('.knav-foot')?.textContent || '' }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await new Promise(res => setTimeout(res, 50))
+    return { before, open, closed: !!sh?.hidden }
+  })
+  ok(!r.before.hidden && r.before.role === 'button' && r.before.tag === 'TESTNET' && r.before.net === 'testnet' && r.before.bg === 'rgb(232, 115, 26)',
+    'the pill leads with TESTNET in testnet orange, and is a button', JSON.stringify(r.before))
+  ok(r.open.shown && r.open.expanded === 'true' && /TESTNET tables only/.test(r.open.foot), 'tapping the pill opens your tables, this network only', JSON.stringify(r.open))
+  ok(r.closed, 'Escape closes it', JSON.stringify(r))
+  ok(!errs.length, 'no page errors', JSON.stringify(errs))
+  await page.close()
+}
+
 // ── MSG-CONCISE1 (owner 2026-11-10: "the message stream is quite verbose … once a transaction is
 // settled successfully, you don't really care about the deal struck information … we need a way of
 // just sort of clearing the deck") ──

@@ -173,6 +173,9 @@ require_once __DIR__ . '/kasset.php';
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
      which owns the _boardChatAnchors this reads. -->
 <script src="<?= kasset('katomia-chat.js') ?>"></script>
+<!-- KNAV-SWITCH1 (owner 2026-11-10, navigation pass part 2): the header pill opens your tables on this
+     network; a tap flips in place (switchGame), and every flip adds a Back step (NAV-BACK1). -->
+<script src="<?= kasset('katomia-switcher.js') ?>"></script>
 <!-- VIEW-API1 (owner 2026-11-06): window.katomiaView — read and change this browser's view
      through the menu's own controls (for an assistant, a test, later a "mirror my view"). -->
 <script src="<?= kasset('katomia-view.js') ?>"></script>

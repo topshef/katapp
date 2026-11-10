@@ -3034,7 +3034,7 @@ body[data-signing="1"] #boardBanner{
   white-space: nowrap;
 }
 body[data-signing="1"] #boardBanner[data-slug]:not([data-slug=""])::before{
-  content: attr(data-slug);
+  content: attr(data-net-label) "\00a0\00a0" attr(data-slug);
   display: inline-block;
   margin-right: 7px;
   padding: 0 7px;
@@ -3044,3 +3044,7 @@ body[data-signing="1"] #boardBanner[data-slug]:not([data-slug=""])::before{
   font-weight: 700;
   font-size: .92em;
 }
+/* NAV-NET1: the banner's chip in the network's colour (the ☰ pill's: testnet orange, mainnet purple, playnet green) */
+body[data-signing="1"] #boardBanner[data-net="testnet"]::before{ background: #e8731a; color: #fff; }
+body[data-signing="1"] #boardBanner[data-net="mainnet"]::before{ background: #6e3fd3; color: #fff; }
+body[data-signing="1"] #boardBanner[data-net="playnet"]::before{ background: #1f8f4e; color: #fff; }

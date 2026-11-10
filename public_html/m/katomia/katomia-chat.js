@@ -1625,18 +1625,30 @@
     catch(_){ return ""; }
   }
   window.katomiaCircleSlug = circleSlug;
+  // NAV-NET1 (owner 2026-11-10, navigation pass part 2: "do both testnet and mainnet … it could be
+  // playnet"): the pill always leads with the network, in the ☰ pill's own colours, so testnet and
+  // mainnet are never mistaken at a glance. Inside a circle the circle's own network is the truth.
+  var NET_LABEL = { testnet: "TESTNET", mainnet: "MAINNET", playnet: "PLAYNET" };
+  function circleNet(){
+    try { return window.__katomiaNetwork || (typeof gameMeta !== "undefined" && gameMeta && gameMeta.network) || ""; }
+    catch(_){ return ""; }
+  }
+  window.katomiaCircleNet = circleNet;
+  window.katomiaNetLabel = function(n){ return NET_LABEL[n] || (n ? String(n).toUpperCase() : ""); };
   function syncAudience(){
     var el = document.getElementById("boardAudience");
     if(!el) return;
     var w = window.katomiaWatching, p = window.katomiaPlaying;
     var esc = function(t){ return String(t).replace(/[&<>"]/g, function(c){ return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
-    var slug = circleSlug();
+    var slug = circleSlug(), net = circleNet();
     var bits = [];
-    if(slug) bits.push('<span class="kaud-slug">' + esc(slug) + '</span>');
+    if(slug) bits.push((net ? '<span class="kaud-net" data-net="' + esc(net) + '">' + esc(window.katomiaNetLabel(net)) + '</span> ' : '')
+      + '<span class="kaud-slug">' + esc(slug) + '</span>');
     if(p) bits.push('<b>' + p + '</b> playing');
     if(w) bits.push('👀 <b>' + w + '</b> watching');
     if(!bits.length){ el.hidden = true; return; }
-    var html = bits.join('<span class="kaud-sep"> · </span>');
+    var html = bits.join('<span class="kaud-sep"> · </span>')
+      + '<span class="kaud-caret" aria-hidden="true">▾</span>';   // KNAV-SWITCH1: the pill opens your tables
     if(el.innerHTML !== html) el.innerHTML = html;
     var name = circleName();
     if(name) el.title = name + (slug ? " (" + slug + ")" : ""); else el.removeAttribute("title");

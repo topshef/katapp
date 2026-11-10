@@ -823,6 +823,8 @@ function boardSetBanner(html){
   b.innerHTML = html
   // CIRCLE-SLUG1: the banner stands in for the header pill while signing — it names the circle too
   try { b.dataset.slug = window.katomiaCircleSlug?.() || "" } catch(_){}
+  // NAV-NET1: the banner's id chip wears the network's colour and names it, as the pill does
+  try { const n = window.katomiaCircleNet?.() || ""; b.dataset.net = n; b.dataset.netLabel = window.katomiaNetLabel?.(n) || "" } catch(_){}
 }
 
 function boardUpdateBanner(){

@@ -12,8 +12,8 @@
        ENTRY-FADES1 treatment the entry pages carry; must be in <head> to arm the
        fade-in before first paint). -->
   <script src="kfade.js?v=1793403648"></script>
-  <link rel="stylesheet" href="katomia.css?v=1794327382" />
-<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794308765" />
+  <link rel="stylesheet" href="katomia.css?v=1794341463" />
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794341306" />
   <title>katomia — board</title>
 </head>
 
@@ -1419,7 +1419,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "fe79508"
+  window.KFLOW_COMMIT = "b46de69"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1464,7 +1464,7 @@ window.katomiaNet = (() => {
 <script src="katomia-helpers.js?v=1794315945"></script>
 <script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="katomia-enrich.js?v=1793992212"></script>
-<script src="katomia-network.js?v=1794132771"></script>
+<script src="katomia-network.js?v=1794341398"></script>
 <!-- KDIAG-BOARDBLIND1: board.php never loaded this, so katomiaDiagSend()
      (the self-contained /diag sender — the create-order-modal comment in this
      file explains window.kdiag from the kpool widget is lazy and NOT reliably
@@ -1477,14 +1477,17 @@ window.katomiaNet = (() => {
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->
 <script src="katomia-txstatus.js?v=1793403648"></script>
-<script src="katomia-board.js?v=1794327202"></script>
+<script src="katomia-board.js?v=1794341299"></script>
 <script src="katomia-carousel.js?v=1793403648"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
 <script src="katomia-tickets.js?v=1793403648"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 
 <!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
      which owns the _boardChatAnchors this reads. -->
-<script src="katomia-chat.js?v=1794327898"></script>
+<script src="katomia-chat.js?v=1794341463"></script>
+<!-- KNAV-SWITCH1 (owner 2026-11-10, navigation pass part 2): the header pill opens your tables on this
+     network; a tap flips in place (switchGame), and every flip adds a Back step (NAV-BACK1). -->
+<script src="katomia-switcher.js?v=1794341544"></script>
 <!-- VIEW-API1 (owner 2026-11-06): window.katomiaView — read and change this browser's view
      through the menu's own controls (for an assistant, a test, later a "mirror my view"). -->
 <script src="katomia-view.js?v=1793993200"></script>

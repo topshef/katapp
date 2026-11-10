@@ -940,8 +940,7 @@ function buildJoinPayload(intentPublicKey){
 // SIDECIRCLE-SOFTSWAP1: re-point this tab at another circle without a page load. What a
 // fresh load of /board/<to> would have established, re-established here: the circle id
 // every outgoing frame carries (gameId), the per-circle account cache key, the address
-// bar (replaceState — Back still returns to wherever the tab came from, not to the
-// parent mid-ceremony), the tab name and title (TABTARGET1 / TABTITLE1), the chat
+// bar (NAV-BACK1: now pushState, so Back returns to the parent; it was replaceState), the tab name and title (TABTARGET1 / TABTITLE1), the chat
 // stream's dedupe baseline (the side circle's ids restart at 1), and the server-side
 // subscription via a second game_join on the same socket (the player record already
 // exists in the child — splitGame cloned it — so joinGame finds it and does not
@@ -952,16 +951,20 @@ function buildJoinPayload(intentPublicKey){
 // read-only peek for QA and other scripts (the binding itself lives in the page's shared
 // script scope, so a probe cannot reach it by name)
 window.katomiaGameId = () => gameId
-function switchGame(to){
+// NAV-BACK1 (owner 2026-11-10, navigation pass part 2, Q5: "every flip is a step so that back button
+// then works"): a flip now ADDS a Back step — a flip from the pill's switcher and the automatic move
+// into a side circle alike (the move used to replace the address, so Back skipped the parent).
+// opts.history: "push" (default) | "none" (Back/Forward already changed the address: just follow it).
+function switchGame(to, opts = {}){
 	window.__kSwitchingTo = to
 	gameId = to
 	ACCOUNT_CACHE_KEY = accountCacheKey()
-	try {
+	if(opts.history !== "none") try {
 		// the clean route (/board/<id>) and the legacy query form (?game=<id>) both name the circle
 		const u = new URL(location.href)
 		u.pathname = u.pathname.replace(/\/board\/[^/]+/, "/board/" + to)
 		if(u.searchParams.has("game")) u.searchParams.set("game", to)
-		history.replaceState(history.state, "", u.pathname + u.search + u.hash)
+		history.pushState({ katomiaGame: to }, "", u.pathname + u.search + u.hash)
 	} catch(_){}
 	try { window.name = decodeURIComponent(to) } catch(_){ try { window.name = to } catch(__){} }
 	try { document.title = window.name + " · katomia" } catch(_){}
@@ -988,6 +991,19 @@ function switchGame(to){
 
 
 
+
+// NAV-BACK1: Back and Forward between flips stay in the page — the address names the circle, so
+// follow it in place. (Leaving the board entirely is an ordinary navigation, untouched.)
+window.addEventListener("popstate", () => {
+	try {
+		const m = location.pathname.match(/\/board\/([^/?#]+)/)
+		const id = m ? decodeURIComponent(m[1]) : new URLSearchParams(location.search).get("game")
+		if(id && id !== gameId){
+			window.kdiag?.("board:nav:back", { from: gameId, to: id })
+			switchGame(id, { history: "none" })
+		}
+	} catch(e){ console.warn("[nav] popstate", e) }
+})
 
 function exitGame(){
 
