@@ -980,7 +980,12 @@ function boardShowResult(txid, ok, tier, source){
     // successes would otherwise coalesce into one toast.
     const net = window.__katomiaNetwork
     const link = (ok && txid && (net === "mainnet" || net === "testnet"))
-      ? { href: `https://hashscan.io/${net}/transaction/${encodeURIComponent(txid)}`,
+      // KPAYLINK1 (owner 2026-11-10: "update all the links so they go to kpay.uk instead of HashScan"):
+      // a transaction opens its kpay.uk receipt. Accounts and tokens stay on HashScan (kpay.uk has no
+      // account or token page yet).
+      // The HYPHEN form (0.0.x-secs-nanos): kpay.uk answers the @ and %40 forms with a 307 to itself in
+      // browsers (a redirect loop, 2026-11-10); the receipt page parses the hyphen form natively.
+      ? { href: `https://kpay.uk/tx/${net}/${kpayTxPath(txid)}`,
           text: `${txid}\u00A0↗` }   // TOAST-LOOK1: the arrow never wraps away from the id
       : null
     // BOARD-CHATMODE1 R3 (user 2026-08-03): with the message panel on (the default),

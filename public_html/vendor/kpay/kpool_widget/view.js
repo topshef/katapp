@@ -609,10 +609,11 @@ const SIGN_REASON = {
 		if (data.mirror?.transactions?.[0]?.consensus_timestamp) {
 			const go = document.createElement('a')
 			go.className = 'txread-scope-hashscan'
-			go.href = `https://hashscan.io/${network}/transaction/${txid}`
+			// KPAYLINK1: the kpay.uk receipt, in the hyphen form (kpay.uk loops on the @ form in browsers)
+			go.href = `https://kpay.uk/tx/${network}/${String(txid).replace('@', '-').replace(/\.(\d+)$/, '-$1')}`
 			go.target = '_blank'
 			go.rel = 'noopener'
-			go.title = tip('View on HashScan')
+			go.title = tip('Open the kpay.uk receipt')
 			go.textContent = '↗'
 			ids.append(go)
 		}

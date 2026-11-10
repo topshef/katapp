@@ -232,6 +232,7 @@ cat > "$DIST/wrangler.toml" <<WT
 name = "$NAME"
 main = "router.js"
 compatibility_date = "2026-08-01"
+$( [ -n "$KATUI_DOMAIN" ] && printf '# LAB2-DEPLOY1: wrangler attaches the custom domain on deploy (zone on the same account).\n# WRANGLER-ROUTES1 (2026-11-10): top level, BEFORE any [table] — after [vars] it was read as a var.\nroutes = [{ pattern = "%s", custom_domain = true }]\n' "$KATUI_DOMAIN" )
 [assets]
 directory = "."
 binding = "ASSETS"
@@ -260,7 +261,6 @@ service = "$PAGES_SERVICE"
 
 [vars]
 ALIAS_ORIGIN = "https://${ALIAS%%/*}"
-$( [ -n "$KATUI_DOMAIN" ] && printf '\n# LAB2-DEPLOY1: wrangler attaches the custom domain on deploy (zone on the same account)\nroutes = [{ pattern = "%s", custom_domain = true }]\n' "$KATUI_DOMAIN" )
 WT
 
 # LABS-PROMOTE1: the labs Worker deploys THIS bundle with its own name and custom domain
@@ -269,10 +269,12 @@ if [ -n "${LABS_NAME:-}" ]; then
   [ "$LABS_NAME" = "$NAME" ] && { echo "LABS_NAME=$LABS_NAME is the lab Worker itself"; exit 1; }
   [ "$LABS_NAME" = "$PAGES_SERVICE" ] && { echo "LABS_NAME=$LABS_NAME is the PAGES Worker — the hand-through would loop"; exit 1; }
   echo "→ wrangler.labs.toml ($LABS_NAME${LABS_DOMAIN:+ on $LABS_DOMAIN}; deployed from branch labs)"
-  sed -e "s/^name = \"$NAME\"$/name = \"$LABS_NAME\"/" \
-      -e '/^# LAB2-DEPLOY1: wrangler attaches the custom domain/d' -e '/^routes = \[/d' "$DIST/wrangler.toml" > "$DIST/wrangler.labs.toml"
+  # the name and the custom domain swapped IN PLACE (the routes line sits at the top level, before
+  # any [table] — WRANGLER-ROUTES1); a labs variant without a domain drops the routes line
+  if [ -n "${LABS_DOMAIN:-}" ]; then DOMAIN_SED="s/^routes = \[{ pattern = \"$KATUI_DOMAIN\"/routes = [{ pattern = \"$LABS_DOMAIN\"/"; else DOMAIN_SED='/^routes = \[/d'; fi
+  sed -e "s/^name = \"$NAME\"$/name = \"$LABS_NAME\"/" -e "$DOMAIN_SED" "$DIST/wrangler.toml" > "$DIST/wrangler.labs.toml"
   grep -q "^name = \"$LABS_NAME\"$" "$DIST/wrangler.labs.toml" || { echo "wrangler.labs.toml: rename failed"; exit 1; }
-  [ -n "${LABS_DOMAIN:-}" ] && printf '\n# LABS-PROMOTE1: the labs custom domain (wrangler attaches it on deploy)\nroutes = [{ pattern = "%s", custom_domain = true }]\n' "$LABS_DOMAIN" >> "$DIST/wrangler.labs.toml"
+  [ -z "${LABS_DOMAIN:-}" ] || grep -q "pattern = \"$LABS_DOMAIN\"" "$DIST/wrangler.labs.toml" || { echo "wrangler.labs.toml: domain swap failed"; exit 1; }
 fi
 
 echo "→ .assetsignore (keep Worker config + wrangler's own droppings out of the PUBLIC bundle:"

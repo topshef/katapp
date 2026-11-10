@@ -2,6 +2,14 @@
        HELPERS / ADAPTERS
     ========================= */
 
+// KPAYLINK1 (owner 2026-11-10: "update all the links so that they go to kpay.uk instead of HashScan"):
+// a transaction id for a kpay.uk receipt URL, in the HYPHEN form (0.0.x-secs-nanos). kpay.uk answers
+// the @ and %40 forms with a 307 to itself in browsers (a redirect loop, seen 2026-11-10); the receipt
+// page (kpayuk tx-static) parses the hyphen form natively. An id already in hyphen form is unchanged.
+function kpayTxPath(txid){
+  return String(txid ?? "").replace("@", "-").replace(/\.(\d+)$/, "-$1")
+}
+
 
 
 

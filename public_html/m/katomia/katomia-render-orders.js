@@ -235,7 +235,7 @@ function getTxMeta(tx){
     status,
     statusText: success ? "✅" : "❓",
     url: success
-      ? `https://hashscan.io/${network}/transaction/${txid}`
+      ? `https://kpay.uk/tx/${network}/${kpayTxPath(txid)}`   // KPAYLINK1: the kpay.uk receipt (hyphen form), not HashScan
       // TIDY-LINKS1: the external signing page is served by this site now (SIGNPAGE-STATIC1);
       // swap.kpay.live was the pre-migration host and is no longer ours
       : `/m/sign/?network=${encodeURIComponent(network)}&txid=${encodeURIComponent(tx.txid)}&pch=${encodeURIComponent(tx.pch || "")}`

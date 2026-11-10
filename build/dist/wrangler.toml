@@ -1,6 +1,9 @@
 name = "katui-lab1"
 main = "router.js"
 compatibility_date = "2026-08-01"
+# LAB2-DEPLOY1: wrangler attaches the custom domain on deploy (zone on the same account).
+# WRANGLER-ROUTES1 (2026-11-10): top level, BEFORE any [table] — after [vars] it was read as a var.
+routes = [{ pattern = "lab1.katomia.com", custom_domain = true }]
 [assets]
 directory = "."
 binding = "ASSETS"
@@ -29,6 +32,3 @@ service = "katui"
 
 [vars]
 ALIAS_ORIGIN = "https://api.katomia.com"
-
-# LAB2-DEPLOY1: wrangler attaches the custom domain on deploy (zone on the same account)
-routes = [{ pattern = "lab1.katomia.com", custom_domain = true }]

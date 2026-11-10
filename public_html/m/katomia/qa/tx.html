@@ -113,7 +113,7 @@ function netBadge(n){
 function txLink(r){
   if(!r.txid) return "—"
   if(r.network === "mainnet" || r.network === "testnet")
-    return `<a class="tx" href="https://hashscan.io/${r.network}/transaction/${encodeURIComponent(r.txid)}" target="_blank">${esc(r.txid)}</a>`
+    return `<a class="tx" href="https://kpay.uk/tx/${r.network}/${String(r.txid).replace('@', '-').replace(/\.(\d+)$/, '-$1')}" target="_blank">${esc(r.txid)}</a>`
   return `<span class="dur">${esc(r.txid)}</span>`
 }
 function msBetween(a, b){

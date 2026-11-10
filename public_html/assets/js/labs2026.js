@@ -171,7 +171,7 @@ async function renderRecentSseToasts(currentDealId) {
       else if (!d.hex2) {
         isFinal = true // whatever happened, there's nothing left to resume in kpool
         const m = await mirrorTxLookup(t.network, t.txid)
-        if (m) { status = m.result; href = `https://hashscan.io/${encodeURIComponent(t.network)}/transaction/${m.consensus}` }
+        if (m) { status = m.result; href = `https://kpay.uk/tx/${encodeURIComponent(t.network)}/${String(t.txid).replace('@', '-').replace(/\.(\d+)$/, '-$1')}` }   // KPAYLINK1: the receipt (hyphen form)
         else { status = 'not found — may have expired'; href = null }
       }
     } catch {}
