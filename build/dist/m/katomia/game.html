@@ -491,14 +491,19 @@ window.katomiaNet = (() => {
       box.querySelector(".knw-go")?.focus()
     })
   }
+  // NAV-WALL1 R2: the last tap wins. Reading your seats takes a round trip, so Mainnet then Testnet
+  // tapped quickly used to end on Mainnet (the slow tap landed last). A newer tap abandons an older one.
+  let switchSeq = 0
   async function switchTo(v){
+    const my = ++switchSeq
     const was = get()
     if(!NETS.includes(v) && !DEV.includes(v)) return false
     if(v === was){ set(v); return true }
     let seats = []
     try { seats = await seatsOn(was) } catch(e){ console.warn("[net] could not read your tables", e) }
+    if(my !== switchSeq) return false
     if(seats.length){
-      if(!(await ask(was, v, seats))){ paint(); return false }
+      if(!(await ask(was, v, seats)) || my !== switchSeq){ paint(); return false }
       const leaving = seats.filter(x => !(x.you.signing || []).length)
       if(leaving.length) try {
         await fetch(API() + "/leave-network", { method: "POST", headers: { "content-type": "application/json", "x-player-token": tok() }, body: JSON.stringify({ network: was }) })
@@ -1575,7 +1580,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "7181f22"
+  window.KFLOW_COMMIT = "e84b419"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — loads first so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1609,15 +1614,15 @@ window.katomiaNet = (() => {
 <script src="katomia-helpers.js?v=1794343639"></script>
 <script src="katomia-places.js?v=1793403648"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script src="katomia-enrich.js?v=1793992212"></script>
-<script src="katomia-network.js?v=1794343639"></script>
-<script src="katomia-modals.js?v=1794273793"></script>
+<script src="katomia-network.js?v=1794348124"></script>
+<script src="katomia-modals.js?v=1794348486"></script>
 <script src="katomia-render.js?v=1794231726"></script>
 <!-- TXSTATUS-CONSOLIDATE1 S7: the tx/wallet status controller, so order-mode
      auto-sign reports through it (terminal dedup + settle window + a real
      user-visible surface) instead of kdiag-only. Must load BEFORE
      katomia-render-orders.js, which subscribes at module top level. -->
 <script src="katomia-txstatus.js?v=1793403648"></script>
-<script src="katomia-render-orders.js?v=1794315933"></script>
+<script src="katomia-render-orders.js?v=1794348486"></script>
 <script src="katomia-market.js?v=1793403648"></script>
 <script src="katomia-tickets.js?v=1793403648"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 

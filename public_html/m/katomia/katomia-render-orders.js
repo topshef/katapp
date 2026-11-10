@@ -842,7 +842,15 @@ async function maybeAutoSignTx(tx){
     let bytes = tx.txhex ? orderHexToBytes(tx.txhex) : null
     if(!bytes) bytes = await orderReadTxBytes(network, txid)
     if(!bytes) throw new Error("transaction bytes unavailable")
-    const { signedTransactionHex } = await wc.signTx({ accountId: active, transactionBytes: bytes })
+    // SIGN-QUIET1: same "your wallet isn't answering" cue as the circle board (katomia-modals.js).
+    // The book signs by itself, so the way to try again here is a reload.
+    const stopQuiet = window.katomiaWatchQuietWallet?.(active,
+      (message, level, timeout) => orderReportAdvice(txid, { message, level, timeout }),
+      stage => { try { katomiaDiagSend?.("order:autosign:quiet", { txid, account: active, stage }) } catch {} },
+      "reload this page to ask again")
+    let signedTransactionHex
+    try { ({ signedTransactionHex } = await wc.signTx({ accountId: active, transactionBytes: bytes })) }
+    finally { try { stopQuiet?.() } catch {} }
     // S7 / SIGN-DEADTX1 item 1: expiry was only checked at ENTRY; the WC
     // round-trip can outlive the window, and saving a signature for a dead tx
     // reports "signed" for something that can never land. The S4 bundle bound

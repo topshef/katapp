@@ -265,6 +265,10 @@ export function route(url) {
   if (p === '/kflow') return { kind: 'empty' };
   if ((m = p.match(GLOG))) return { kind: 'asset', path: '/m/tools/glog/src/' + m[1] };
   if ((m = p.match(SIBLING))) return { kind: 'asset', path: K + '/' + m[1] };
+  // NAV-BOOKPATH1 R2 (owner 2026-11-10: "the ring view flag only works when it says board … I have to put
+  // the ring view equals 1 and then change game to board"): an order book's page is /game/<id>; its ring
+  // view lives on the board, so /game/<id>?ringview=1 goes there (the query string rides along).
+  if ((m = p.match(/^\/game\/([^/.]+)\/?$/)) && url.searchParams.has('ringview')) return { kind: 'redirect', to: '/board/' + m[1] };
   if ((m = p.match(IDPAGE))) return { kind: 'asset', path: K + `/${m[1]}.html` };
   if (p === '/vendor/walletconnect/config.json') return { kind: 'wc' };
   return null;

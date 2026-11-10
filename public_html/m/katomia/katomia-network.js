@@ -842,6 +842,17 @@ async function katomiaHandleFrame(msg){
     if(gameMeta?.network) kwcEarlyScope(gameMeta.network)
     
     document.body.dataset.tradingMode = gameMeta?.config?.tradingMode || ""
+    // NAV-BOOKPATH1 R2 (owner 2026-11-10: "when I do /board, it briefly flashes up with the ring view. And then
+    // flips back"): an order book's page is /game/<id>. Decide on the FIRST state, before anything is drawn,
+    // instead of on a timer after the ring has painted. ?ringview=1 keeps the ring view (dev switch).
+    if(gameMeta?.config?.tradingMode === "orderBook" && document.getElementById("boardRoot") && !window.KATOMIA_PREVIEW){
+      let q; try { q = new URLSearchParams(location.search) } catch(_){ q = new URLSearchParams() }
+      if(!q.has("ringview") && !q.has("demo")){
+        window.kdiag?.("board:nav:bookpath", { id: gameMeta.id || gameId })
+        location.replace(location.pathname.replace(/\/board\/[^/]+.*$/, "") + "/game/" + encodeURIComponent(gameMeta.id || gameId) + location.search + location.hash)
+        return
+      }
+    }
   
     currentPlayerId = data.myPlayerId || null
 

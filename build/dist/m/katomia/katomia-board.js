@@ -5462,10 +5462,17 @@ async function boardDirectSign(account){
     // handled silently below) instead of leaking a timer that fires at +120s.
     const attemptId = window.katomiaTxStatus?.attempt(tx.txid, { accountId: signAs,
       abort: () => { clearTimeout(wd1); clearTimeout(wd2); try { wc.cancelInFlight?.({ label: `signTx:${signAs}`, reason: "superseded or terminal" }) } catch {} } })
+    // SIGN-QUIET1 (owner 2026-11-10, t-prop~82): the wallet's link went quiet twice and the
+    // person saw an orange ring and nothing else, so they pressed again and reloaded. Say so while
+    // it happens (katomia-modals.js has the rules); only for this attempt.
+    const stopQuiet = window.katomiaWatchQuietWallet?.(signAs,
+      (message, level, timeout) => boardReportTxAdvice(tx.txid, "wallet", { message, level, timeout }),
+      stage => boardDiag("board:sign:quiet", { txid: tx.txid, accountId: signAs, stage }))
     let signedTransactionHex
     try {
       ({ signedTransactionHex } = await wc.signTx({ accountId: signAs, transactionBytes: bytes }))
     } finally {
+      try { stopQuiet?.() } catch {}
       clearTimeout(wd1); clearTimeout(wd2)
       if(attemptId) window.katomiaTxStatus?.attemptDone(attemptId)
     }

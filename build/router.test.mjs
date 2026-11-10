@@ -36,6 +36,7 @@ const cases = [
   ['/KEA/kea-app.js',                     null],                         // the fetch falls back to m/katomia/
   ['/game/AbC123',                        A('/m/katomia/game.html')],
   ['/game/AbC123/',                       A('/m/katomia/game.html')],
+  ['/game/t-fx-brlgbp?ringview=1',        { kind: 'redirect', to: '/board/t-fx-brlgbp' }],   // NAV-BOOKPATH1 R2
   ['/board/AbC123',                       A('/m/katomia/board.html')],
   ['/board/t-prop~3',                     A('/m/katomia/board.html')],
   ['/board',                              A('/m/katomia/board.html')],

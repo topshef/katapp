@@ -130,6 +130,12 @@ let _diagQueue = [], _diagTimer = null
 function katomiaDiagSend(msg, data){
   // always mirror locally for live debugging
   try { console.debug("[katomiaDiag]", msg, data ?? "") } catch {}
+  // SIGN-QUIET1 (owner 2026-11-10, t-prop~82: "doesn't go from orange to green… I tried a couple
+  // of times"): the KWC bundle's link health (the advisory ping, the deaf-link restart) only
+  // reached kdiag, so while the wallet was not answering the page showed nothing at all. Re-emit
+  // just those events as a page event, so the board can tell the person while a sign is open.
+  try { if(msg === "wc:session:ping" || /^wc:deaf:/.test(msg)) window.dispatchEvent(new CustomEvent("kwc:link", { detail: { msg, data: data || {} } })) } catch {}
+  // (katomiaWatchQuietWallet below turns these into what the person is told.)
   try { window.glog?.(msg, data) } catch {}
   try { _widgetKdiag?.(msg, data) } catch {}   // also feed widget buffer if present
 
@@ -1239,3 +1245,28 @@ document.getElementById("createOrderMinFill")?.addEventListener("blur", () => {
   validateOrderMath()
 })
 
+
+// SIGN-QUIET1 (owner 2026-11-10, t-prop~82): while ONE sign is open, tell the person when their
+// wallet is not answering the link, instead of leaving an orange ring and nothing else. The first
+// failed advisory ping means "not picked up yet" (the bundle is already restarting the link); a
+// failed ping after that restart means "wake your wallet". `report(message, level, timeout)` is the
+// page's own advice channel; `retry` is what to do next on that page. Returns the stop function; call it when the sign returns, either way.
+// A late answer still saves exactly as before: this only speaks, it never cancels anything.
+window.katomiaWatchQuietWallet = function(accountId, report, diag, retry = "press Sign again"){
+  let said = 0
+  const onLink = ev => {
+    const { msg, data } = ev.detail || {}
+    if(data?.accountId && accountId && data.accountId !== accountId) return
+    if(msg === "wc:session:ping" && data.ok === false && said < 1){
+      said = 1
+      try { diag?.("ping") } catch {}
+      report("Your wallet hasn't picked this up yet — reconnecting to it…", "info", 6000)
+    } else if(msg === "wc:deaf:ping2" && data.ok === false && said < 2){
+      said = 2
+      try { diag?.("ping2") } catch {}
+      report("Your wallet still isn't answering. Open it (click the HashPack icon, or open the app) — the request should appear there. If nothing appears within a few seconds, " + retry + ".", "warning", 12000)
+    }
+  }
+  window.addEventListener("kwc:link", onLink)
+  return () => window.removeEventListener("kwc:link", onLink)
+}

@@ -350,6 +350,8 @@ console.log('11. MENU-SPEC1 + MENU-NET1: the ☰ by page — network only on Hom
     ok(['Circles', 'You', 'Send feedback'].every(w => r.items.some(t => t.includes(w))) && !r.items.some(t => /Profile/.test(t)), 'Home: ⭕ Circles, 👤 You, 💬 Send feedback — and "Profile" is gone', JSON.stringify(r.items))
     ok(!r.dev && !r.playnet && r.pressed.join() === 'testnet', 'Home, normal mode: no Developer group, no Playnet, testnet until chosen', JSON.stringify(r))
     for (const n of ['mainnet', 'testnet', 'mainnet', 'testnet', 'mainnet']) await page.click(`[data-net="${n}"]`)
+    // NAV-WALL1: a switch first reads your seats (one round trip), so give the last tap a moment to land
+    await page.waitForFunction(() => localStorage.getItem('katomiaNetwork') === 'mainnet', null, { timeout: 3000 }).catch(() => {})
     const s = await page.evaluate(() => ({ stored: localStorage.getItem('katomiaNetwork'), open: !document.getElementById('appMenu').classList.contains('hidden'),
       auth: document.getElementById('authNetwork')?.value, kam: document.getElementById('kamNetwork')?.value,
       notes: document.querySelectorAll('[data-network-note]').length, noteText: document.querySelector('[data-network-note="authNetwork"]')?.textContent,
@@ -357,6 +359,14 @@ console.log('11. MENU-SPEC1 + MENU-NET1: the ☰ by page — network only on Hom
     ok(s.stored === 'mainnet' && s.open, 'tapping Mainnet stores it and the menu stays open (a switch, not a destination)', JSON.stringify(s))
     ok(s.auth === 'mainnet' && s.kam === 'mainnet' && s.noteText === 'Mainnet', 'the You and Authenticate wallet pickers follow it, and the note names it', JSON.stringify(s))
     ok(s.notes === 2 && s.rows.every(Boolean), 'five switches later there is still exactly one note per modal and both picker rows stay hidden (lab2 piled notes up)', JSON.stringify(s))
+    // NAV-WALL1 R2: with a slow seat read, Testnet then Mainnet tapped quickly must end on Mainnet (the last tap)
+    await page.route('**/hapi/katomia/games*', async r => { await new Promise(x => setTimeout(x, 400)); r.fulfill({ contentType: 'application/json', body: JSON.stringify(GAMES) }) })
+    await page.click('#appMenuBtn').catch(() => {}); await page.waitForTimeout(250)
+    if (await page.evaluate(() => document.getElementById('appMenu').classList.contains('hidden'))) { await page.click('#appMenuBtn'); await page.waitForTimeout(250) }
+    await page.click('[data-net="testnet"]'); await page.click('[data-net="mainnet"]')
+    await page.waitForTimeout(900)
+    const last = await page.evaluate(() => localStorage.getItem('katomiaNetwork'))
+    ok(last === 'mainnet', 'a slow switch never overrides a later tap: Testnet then Mainnet ends on Mainnet', last)
     ok(!errs.length, 'no page errors on Home', JSON.stringify(errs))
     await ctx.close()
   }

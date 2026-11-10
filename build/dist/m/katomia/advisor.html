@@ -524,14 +524,19 @@ window.katomiaNet = (() => {
       box.querySelector(".knw-go")?.focus()
     })
   }
+  // NAV-WALL1 R2: the last tap wins. Reading your seats takes a round trip, so Mainnet then Testnet
+  // tapped quickly used to end on Mainnet (the slow tap landed last). A newer tap abandons an older one.
+  let switchSeq = 0
   async function switchTo(v){
+    const my = ++switchSeq
     const was = get()
     if(!NETS.includes(v) && !DEV.includes(v)) return false
     if(v === was){ set(v); return true }
     let seats = []
     try { seats = await seatsOn(was) } catch(e){ console.warn("[net] could not read your tables", e) }
+    if(my !== switchSeq) return false
     if(seats.length){
-      if(!(await ask(was, v, seats))){ paint(); return false }
+      if(!(await ask(was, v, seats)) || my !== switchSeq){ paint(); return false }
       const leaving = seats.filter(x => !(x.you.signing || []).length)
       if(leaving.length) try {
         await fetch(API() + "/leave-network", { method: "POST", headers: { "content-type": "application/json", "x-player-token": tok() }, body: JSON.stringify({ network: was }) })
