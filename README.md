@@ -24,10 +24,11 @@ lab1 follows `main`; labs stays at whatever commit was last promoted, so lab1 ca
 **Promote** a commit that is already live and checked on lab1: `git push origin <commit>:labs`
 (a fast-forward; never force-push), then deploy the labs Worker from that commit (below) and
 poll `https://labs.katomia.com/build-info.json`. **Roll back** = deploy an older commit.
-Deploying labs: when the Cloudflare git connection for `katui-labs` exists (Workers → katui-labs
-→ Settings → Build: repo topshef/katapp, branch `labs`, root `build/dist`, deploy command
-`npx wrangler deploy -c wrangler.labs.toml`), the push does it; until then a session deploys it
-from a checkout of that commit: `cd build/dist && npx wrangler deploy -c wrangler.labs.toml`.
+Deploying labs: **the push does it.** `katui-labs` is git-connected (Workers Builds trigger
+`labs (LABS-PROMOTE1)`, created 2026-11-10: repo topshef/katapp, branch `labs`, root `build/dist`,
+deploy command `npx wrangler deploy -c wrangler.labs.toml`; first build succeeded). Poll
+`https://labs.katomia.com/build-info.json` after pushing. By hand, if ever needed:
+`cd build/dist && npx wrangler deploy -c wrangler.labs.toml` from a checkout of that commit.
 The labs Worker's custom domains come from `LABS_DOMAINS` in `build/variant.env` (labs AND app):
 a deploy replaces the Worker's whole set of custom domains with that list, so a domain added only
 in the dashboard would be detached by the next promotion. To split app.katomia.com off later, give
