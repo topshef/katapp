@@ -50,6 +50,10 @@ const cases = [
   ['/hapi.php?action=authenticate&x=1',   { kind: 'alias', path: '/hapi/katomia/authenticate', search: '?x=1' }],
   ['/hapi.php?action=a.b',                { kind: 'bad' }],
   ['/hapi/katomia/games',                 { kind: 'alias', path: '/hapi/katomia/games' }],
+  // SIDECIRCLE-PATH1: a side circle's id carries a `~`
+  ['/hapi/katomia/game/m-prop~18',        { kind: 'alias', path: '/hapi/katomia/game/m-prop~18' }],
+  ['/m/katomia/hapi/game/t-prop~68',      { kind: 'alias', path: '/hapi/katomia/game/t-prop~68' }],
+  ['/hapi/katomia/game/m-prop~18/trades', { kind: 'alias', path: '/hapi/katomia/game/m-prop~18/trades' }],
   // every old page address redirects to the same path without /m/katomia (the Worker keeps the
   // query); 302 during the lab1 trial, see OLDPAGE_CODE
   ['/m/katomia',                          R('/')],

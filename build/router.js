@@ -91,10 +91,12 @@ const HANDTHROUGH = /^\/(?:keaton|deal|deals|legacy)(?:\/|$)|^\/future\/v3(?:\/|
 export const handThrough = (url) => HANDTHROUGH.test(url.pathname);
 const PAGES = new Set(['welcome', 'markets', 'circles', 'learn', 'host', 'create', 'binding', 'advisor']);
 const LANDING_SKINS = new Set(['liquid', 'clay', 'bubble']);
-// The alias's own path allowlist is [A-Za-z0-9/_-]: no dots, so "..", hidden files and
+// The alias's own path allowlist is [A-Za-z0-9/_~-]: no dots, so "..", hidden files and
 // traversal are unexpressible (same SAFE BY OMISSION rule as the .htaccess hapi rule).
-const KHAPI = /^\/m\/katomia\/hapi\/([A-Za-z0-9/_-]+)\/?$/;
-const RHAPI = /^\/hapi\/([A-Za-z0-9/_-]+)\/?$/;
+// SIDECIRCLE-PATH1 (2026-11-10): `~` added here and in the alias (phpjabbers api-alias/worker.js) —
+// side-circle ids are <parent>~<n> (m-prop~18), and /hapi/katomia/game/m-prop~18 answered 404.
+const KHAPI = /^\/m\/katomia\/hapi\/([A-Za-z0-9/_~-]+)\/?$/;
+const RHAPI = /^\/hapi\/([A-Za-z0-9/_~-]+)\/?$/;
 const ACTION = /^[A-Za-z0-9_-]+$/;
 const SIBLING = /^(?:\/m\/katomia)?\/(?:game|board)\/(.+\.[^/]+)$/;   // [/m/katomia]/game/<any>.<ext>
 const IDPAGE = /^\/(game|board)(?:\/([^/.]+))?\/?$/;                  // game, board, or …/<id> (ROOT-MOVE1: at the root)
