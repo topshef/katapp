@@ -7,7 +7,7 @@
 <!-- ENTRY-FADES1 (user 2026-07-30): quiet cross-fade page transition. Must be in
      <head> — it arms the fade-in before first paint. -->
 <script src="kfade.js?v=1793403648"></script>
-<link rel="stylesheet" href="katomia.css?v=1794341463">
+<link rel="stylesheet" href="katomia.css?v=1794343639">
 <!-- DARK-PAGES1 (owner 2026-11-10): this page has its own dark mode — katomia-dark.css here, and the
      generated block after this page's own style block (build/dark-css.mjs). Declaring it stops Chrome repainting the page. -->
 <meta name="color-scheme" content="light dark">
@@ -249,6 +249,27 @@ body{ background-color: rgb(23, 23, 23); }
   .app-menu-netpill[data-net="testnet"]{ background:#e8731a; color:#fff; }
   .app-menu-netpill[data-net="mainnet"]{ background:#6e3fd3; color:#fff; }
   .app-menu-netpill[data-net="playnet"]{ background:#1f8f4e; color:#fff; }
+  /* NAV-WALL1: the switch-network warning */
+  .knw-scrim{ position:fixed; inset:0; z-index:9000; background:rgba(20,18,30,.5); display:flex; align-items:center; justify-content:center; padding:16px; }
+  .knw-dialog{ width:min(420px,100%); max-height:86vh; overflow:auto; background:#fff; color:#1f2733; border-radius:16px; padding:18px 18px 14px; box-shadow:0 24px 50px -18px rgba(0,0,0,.6); font:14px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; }
+  .knw-dialog h3{ margin:0 0 10px; font-size:17px; display:flex; align-items:center; gap:8px; flex-wrap:wrap; }
+  .knw-dialog p{ margin:0 0 8px; }
+  .knw-dialog ul{ margin:0 0 10px; padding-left:18px; }
+  .knw-dialog li{ margin:4px 0; }
+  .knw-dialog li b{ font-family:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  .knw-nm, .knw-note{ color:#6b7385; font-size:12.5px; }
+  .knw-warn{ background:#fdf1dc; color:#8a5300; border-radius:10px; padding:8px 10px; font-weight:600; }
+  .knw-net{ font:700 11px/1 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.06em; color:#fff; border-radius:999px; padding:4px 8px; background:#8a8f9c; text-transform:uppercase; }
+  .knw-net[data-net="testnet"]{ background:#e8731a; } .knw-net[data-net="mainnet"]{ background:#6e3fd3; } .knw-net[data-net="playnet"]{ background:#1f8f4e; }
+  .knw-btns{ display:flex; gap:8px; justify-content:flex-end; flex-wrap:wrap; margin-top:12px; }
+  .knw-btns button{ font:600 13.5px system-ui,sans-serif; border-radius:10px; padding:9px 14px; border:1px solid rgba(20,28,45,.18); background:transparent; color:inherit; cursor:pointer; }
+  .knw-btns .knw-go{ background:#d64541; color:#fff; border-color:transparent; }
+  @media (prefers-color-scheme: dark){
+    .knw-dialog{ background:#1b2029; color:#e7ecf4; }
+    .knw-nm, .knw-note{ color:#9aa4b6; }
+    .knw-warn{ background:#3a2c12; color:#ffc56b; }
+    .knw-btns button{ border-color:rgba(255,255,255,.2); }
+  }
 
   /* Nested groups (like a Windows submenu, but unrolling in place). The body is a one-row grid
      that animates 0fr → 1fr, so it rolls open at its real height with no measuring. */
@@ -580,14 +601,74 @@ window.katomiaNet = (() => {
     const b = e.target.closest?.("[data-menu-network] [data-net]")
     if(!b) return
     e.stopPropagation()
-    set(b.dataset.net)
+    const want = b.dataset.net
     b.classList.remove("is-picked"); void b.offsetWidth; b.classList.add("is-picked")
     clearTimeout(pickTimer)
     const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches
     pickTimer = setTimeout(() => { b.classList.remove("is-picked"); window.katomiaMenu?.close() }, reduced ? 150 : 320)
+    switchTo(want)   // NAV-WALL1: a real switch goes through the warning
   })
   document.addEventListener("DOMContentLoaded", paint)
-  return { get, set, paint, label: v => LABEL[v] || v }
+
+  // ── NAV-WALL1 (owner 2026-11-10, navigation pass part 2: "if you switch networks, you should get that
+  // warning … your tables will be cleared and you'll be exited from all games of that network … you
+  // can play mainnet, you can play testnet, but you can't juggle"). Switching is a clean break: your
+  // accounts leave the old network's tables (POST /leave-network), except a table where a deal you're
+  // in is being signed — that can't be unwound and may be dated days ahead, so it stays, and you're told
+  // you won't get alerts from it while you're away (the owner: "allow people to switch, but make it clear
+  // they're not going to get any alerts"). With nothing in play it switches without asking.
+  // switchTo(v) → Promise<boolean> (true once switched).
+  const API = () => (window.KAPI || "/hapi/katomia")
+  const tok = () => { try { return typeof getOrCreatePlayerToken === "function" ? getOrCreatePlayerToken() : "" } catch { return "" } }
+  const esc = t => String(t == null ? "" : t).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]))
+  async function seatsOn(net){
+    const t = tok(); if(!t) return []
+    const r = await fetch(API() + "/games", { headers: { "x-player-token": t } })
+    if(!r.ok) throw new Error("games " + r.status)
+    const j = await r.json(), g = j && j.games
+    const list = Array.isArray(g) ? g : Object.values(g || {})
+    return list.filter(x => x && x.network === net && x.you && (x.you.accounts > 0 || (x.you.signing || []).length))
+  }
+  function ask(was, v, seats){
+    return new Promise(resolve => {
+      const W = LABEL[was] || was, V = LABEL[v] || v
+      const signing = seats.filter(x => (x.you.signing || []).length), leaving = seats.filter(x => !(x.you.signing || []).length)
+      const row = (x, note) => `<li><b>${esc(x.id)}</b>${x.profile?.name ? ` <span class="knw-nm">${esc(x.profile.name)}</span>` : ""}<br><span class="knw-note">${note}</span></li>`
+      const box = document.createElement("div")
+      box.className = "knw-scrim"
+      box.innerHTML = `<div class="knw-dialog" role="dialog" aria-modal="true" aria-labelledby="knwTitle">
+        <h3 id="knwTitle">Switch to <span class="knw-net" data-net="${esc(v)}">${esc(V)}</span>?</h3>
+        ${leaving.length ? `<p>You're at ${leaving.length} ${esc(W)} table${leaving.length > 1 ? "s" : ""}. Switching takes your accounts out of ${leaving.length > 1 ? "them" : "it"} and withdraws your offers:</p><ul>${leaving.map(x => row(x, `${x.you.accounts} account${x.you.accounts > 1 ? "s" : ""} · you'll leave`)).join("")}</ul>` : ""}
+        ${signing.length ? `<p>${leaving.length ? "And a" : "A"} deal you're in is being signed at ${signing.length > 1 ? "these tables" : "this table"}. It stays as it is:</p><ul>${signing.map(x => row(x, "deal being signed · stays")).join("")}</ul>` : ""}
+        <p class="knw-warn">You won't get any alerts from ${esc(W)} tables while you're on ${esc(V)}.</p>
+        <div class="knw-btns"><button type="button" data-a="no">Stay on ${esc(W)}</button><button type="button" data-a="yes" class="knw-go">${leaving.length ? "Leave them and switch" : "Switch to " + esc(V)}</button></div>
+      </div>`
+      const done = ok => { box.remove(); document.removeEventListener("keydown", onKey); resolve(ok) }
+      const onKey = e => { if(e.key === "Escape") done(false) }
+      box.addEventListener("click", e => { const a = e.target.closest("[data-a]")?.dataset.a; if(a) done(a === "yes"); else if(e.target === box) done(false) })
+      document.addEventListener("keydown", onKey)
+      document.body.appendChild(box)
+      box.querySelector(".knw-go")?.focus()
+    })
+  }
+  async function switchTo(v){
+    const was = get()
+    if(!NETS.includes(v) && !DEV.includes(v)) return false
+    if(v === was){ set(v); return true }
+    let seats = []
+    try { seats = await seatsOn(was) } catch(e){ console.warn("[net] could not read your tables", e) }
+    if(seats.length){
+      if(!(await ask(was, v, seats))){ paint(); return false }
+      const leaving = seats.filter(x => !(x.you.signing || []).length)
+      if(leaving.length) try {
+        await fetch(API() + "/leave-network", { method: "POST", headers: { "content-type": "application/json", "x-player-token": tok() }, body: JSON.stringify({ network: was }) })
+      } catch(e){ console.warn("[net] leave-network failed", e) }
+      window.kdiag?.("net:switch", { from: was, to: v, left: leaving.map(x => x.id), kept: seats.filter(x => !leaving.includes(x)).map(x => x.id) })
+    }
+    set(v)
+    return true
+  }
+  return { get, set, switchTo, paint, label: v => LABEL[v] || v }
 })()
 </script>
 
@@ -1846,7 +1927,7 @@ drawThemeWheel()
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
 <script src="katomia-core.js?v=1794010719"></script>
-<script src="katomia-helpers.js?v=1794315945"></script>
+<script src="katomia-helpers.js?v=1794343639"></script>
 <script src="kemoji.js?v=1793403648"></script>
 <script>
   // katomia-modals.js (the diag sender) isn't loaded here — shim so profile/auth

@@ -3,8 +3,8 @@
 // listing recent and other circles … since it doesn't do anything at the moment when you tap on it").
 //
 // Tap the header pill (#boardAudience): your tables on THIS network drop down.
-//   Signing now · a table where you have a seat and a deal is being signed (the games list's
-//                 activity.pending). Step 4's knocks will make this a true "needs you".
+//   Signing now · a table where a deal you're in is being signed (the games list's you.signing,
+//                 KNAV-KNOCK1) — the same signal the knocks use.
 //   Yours       · tables where you have a seat (the games list's `you.accounts`, LIST-MINE1), and the
 //                 one you're at; side circles sit under their parent.
 //   Recent      · tables this browser visited (katomiaRecent) that you have no seat at.
@@ -84,7 +84,10 @@
     // the table you're at: under Yours when you have a seat, else on its own under "Here" (watching)
     const watchingHere = H && byId.has(H) && !seatedIds.has(H) ? byId.get(H) : null
     const lastAt = g => (g.activity && g.activity.lastActivity) || 0
-    const signing = [...seatedIds].map(id => byId.get(id)).filter(g => g && g.id !== H && (g.activity && g.activity.pending) > 0)
+    // KNAV-KNOCK1: "Signing now" = a deal YOU are in is being signed there (you.signing, backend);
+    // the games list puts a table you're in a deal at in `you` even if your accounts have moved on
+    for(const g of mine) if(((g.you && g.you.signing) || []).length) seatedIds.add(g.id)
+    const signing = [...seatedIds].map(id => byId.get(id)).filter(g => g && g.id !== H && ((g.you && g.you.signing) || []).length > 0)
     const signingIds = new Set(signing.map(g => g.id))
     const yours = [...seatedIds].map(id => byId.get(id)).filter(g => g && !signingIds.has(g.id))
       .sort((a, b) => (b.id === H) - (a.id === H) || lastAt(b) - lastAt(a))
@@ -129,8 +132,11 @@
     }
     const { signing, ordered, recent, byId, watchingHere } = rows(games)
     let h = ""
-    if(watchingHere) h += `<div class="knav-h">Here</div>` + rowHtml(watchingHere, { line: "watching" + (audience(watchingHere) ? " · " + audience(watchingHere) : "") })
-    if(signing.length) h += `<div class="knav-h">Signing now</div>` + signing.map(g => rowHtml(g, { st: "sign", line: "a deal is being signed" })).join("")
+    if(watchingHere){
+      const a = watchingHere.activity || {}
+      h += `<div class="knav-h">Here</div>` + rowHtml(watchingHere, { line: "you're watching" + (a.playing ? " · " + a.playing + " playing" : "") })
+    }
+    if(signing.length) h += `<div class="knav-h">Signing now</div>` + signing.map(g => rowHtml(g, { st: "sign", line: "a deal you're in is being signed" })).join("")
     if(ordered.length) h += `<div class="knav-h">Yours</div>` + ordered.map(([g, sub]) => rowHtml(g, { sub })).join("")
     if(recent.length) h += `<div class="knav-h">Recent</div>` + recent.map(r => rowHtml(byId.get(r.id), { st: "seen", line: "visited " + ago(r.at) })).join("")
     if(!h) h = `<div class="knav-empty">No other tables yet. Tables you sit at or visit on ${esc(label.toLowerCase())} show up here.</div>`
@@ -166,8 +172,11 @@
   const isOpen = () => !!(sheet && !sheet.hidden)
   function onPick(e){
     const b = e.target.closest(".knav-row"); if(!b) return
-    const id = b.dataset.id, H = here()
     close()
+    flip(b.dataset.id)
+  }
+  function flip(id){
+    const H = here()
     if(!id || id === H) return
     const g = games && games.find(x => x && x.id === id)
     const sameKind = isBook(g) === (document.body.dataset.tradingMode === "orderBook")
@@ -198,5 +207,98 @@
   if(document.readyState === "loading") document.addEventListener("DOMContentLoaded", wire); else wire()
   // warm the list shortly after load, so the first tap opens with rows in it
   setTimeout(() => { if(pill()) load(false).catch(() => {}) }, 2500)
-  window.katomiaSwitcher = { open, close, get isOpen(){ return isOpen() }, reload: () => load(true).then(draw) }
+  // ── NAV-WALL1: a table address from the other network (a shared link, a bookmark, a typed address) ──
+  // In the app there are no cross-network links (owner, 2026-11-10); an address from outside can still
+  // name a table on the other network. Opening it IS a switch, so it gets the same switch warning
+  // (katomiaNet.switchTo, header.php) before the board is usable. Playnet is a developer network and
+  // demo / preview boards have none: no gate there.
+  let gated = ""
+  function checkWall(){
+    const N = net(), H = here()
+    if(!N || !H || gated === H || N === "playnet" || !window.katomiaNet) return
+    try { if(new URLSearchParams(location.search).has("demo") || window.KATOMIA_PREVIEW) return } catch(_){}
+    const mode = window.katomiaNet.get()
+    gated = H
+    if(mode === N) return
+    window.kdiag?.("net:gate", { table: H, net: N, mode })
+    const W = window.katomiaNetLabel ? window.katomiaNetLabel(mode) : mode, T = window.katomiaNetLabel ? window.katomiaNetLabel(N) : N
+    const box = document.createElement("div")
+    box.className = "knw-scrim"
+    box.innerHTML = `<div class="knw-dialog" role="dialog" aria-modal="true" aria-labelledby="knwGateT">
+      <h3 id="knwGateT"><span class="knw-net" data-net="${esc(N)}">${esc(T)}</span> This table is on ${esc(T.charAt(0) + T.slice(1).toLowerCase())}</h3>
+      <p><b style="font-family:ui-monospace,monospace">${esc(H)}</b> is on ${esc(T.toLowerCase())}. You're on ${esc(W.toLowerCase())}.</p>
+      <p>To open it, switch network. You can't be on both at once.</p>
+      <div class="knw-btns"><button type="button" data-a="stay">Stay on ${esc(W.charAt(0) + W.slice(1).toLowerCase())}</button><button type="button" data-a="go" class="knw-go" style="background:#4b55c9">Switch to ${esc(T.charAt(0) + T.slice(1).toLowerCase())}…</button></div>
+    </div>`
+    document.body.appendChild(box)
+    box.addEventListener("click", async e => {
+      const a = e.target.closest("[data-a]")?.dataset.a; if(!a) return
+      if(a === "stay"){ location.assign(location.pathname.replace(/\/board\/.*$/, "") + "/"); return }
+      box.hidden = true
+      const on = await window.katomiaNet.switchTo(N)
+      if(on){ box.remove(); try { window.boardRenderChat?.() } catch(_){} } else box.hidden = false
+    })
+  }
+  setInterval(checkWall, 1000)
+
+  // ── KNAV-KNOCK1 (owner 2026-11-10, navigation pass part 2: "a circle that needs your attention can
+  // message you in the current chat, but you make it clear from the style of the message that that's a
+  // message coming in from another circle"). Every 15 s while this tab is visible, the games list says
+  // which deals you're in are being signed at your OTHER tables on this network (you.signing, backend
+  // KNAV-KNOCK1). A new one knocks once: a dashed card in this table's stream with Go — never Sign
+  // (owner: always flip first) — and, when the stream isn't on screen, a toast that stays. When that
+  // deal leaves the list, a quiet card says how it ended (settled if it is in the table's recent trades,
+  // otherwise ended without settling); in Concise view the knock folds into that outcome line.
+  const KNOCKED_KEY = "katomiaKnocked"
+  const knocked = (() => { try { return new Set(JSON.parse(sessionStorage.getItem(KNOCKED_KEY) || "[]")) } catch { return new Set() } })()
+  const saveKnocked = () => { try { sessionStorage.setItem(KNOCKED_KEY, JSON.stringify([...knocked].slice(-200))) } catch {} }
+  const active = new Map()   // txid → table id, deals you're in at other tables, as last seen
+  function streamVisible(){
+    const l = document.querySelector("#boardChatDock .kchat-dock-list")
+    return !!(l && l.offsetParent && l.getBoundingClientRect().height > 24)
+  }
+  function knock(text, opts){
+    try { window.katomiaChat?.system?.(text, opts) } catch(_){}
+  }
+  async function outcome(txid, id){
+    let settled = false
+    try {
+      const r = await fetch(API() + "/game/" + encodeURIComponent(id) + "/trades?limit=30")
+      const j = r.ok ? await r.json() : null
+      settled = !!(j && Array.isArray(j.trades) && j.trades.some(t => t && t.txid === txid))
+    } catch(_){}
+    knock(settled ? `✅ The deal you were in at ${id} settled.` : `⌛ The deal you were in at ${id} ended without settling.`,
+      { about: txid, knock: { from: id, kind: "outcome" } })
+  }
+  async function pollKnocks(){
+    if(document.visibilityState !== "visible" || !pill()) return
+    let list
+    try { list = await load(true) } catch(_){ return }
+    if(isOpen()) draw()
+    const N = net(), H = here(), seen = new Set()
+    for(const g of list){
+      if(!g || g.network !== N || g.id === H) continue
+      for(const d of (g.you && g.you.signing) || []){
+        if(!d || !d.txid) continue
+        seen.add(d.txid)
+        if(!active.has(d.txid)) active.set(d.txid, g.id)
+        if(knocked.has(d.txid)) continue
+        knocked.add(d.txid); saveKnocked()
+        const secs = d.until ? Math.round((d.until - Date.now()) / 1000) : null
+        const left = secs == null ? "" : secs > 5400 ? " · window ends " + new Date(d.until).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })
+          : secs > 0 ? " · " + secs + "s left" : ""
+        const msg = `✍ A deal you're in is being signed at ${g.id}${left}.`
+        knock(msg, { about: d.txid, knock: { from: g.id, kind: "sign" } })
+        window.kdiag?.("board:nav:knock", { from: g.id, txid: d.txid, secs })
+        if(!streamVisible() && typeof notify === "function")
+          notify(`${g.id}: a deal you're in is being signed${left}`, "warning", { timeout: 0, key: "knock-" + d.txid, noStream: true,
+            link: { href: location.pathname.replace(/\/board\/[^/]+/, "/board/" + encodeURIComponent(g.id)) + location.search, text: "Go" } })
+      }
+    }
+    for(const [txid, id] of [...active]) if(!seen.has(txid)){ active.delete(txid); if(id !== H) outcome(txid, id) }
+  }
+  setTimeout(pollKnocks, 4000)
+  setInterval(pollKnocks, 15000)
+
+  window.katomiaSwitcher = { open, close, flip, get isOpen(){ return isOpen() }, reload: () => load(true).then(draw), pollKnocks }
 })()

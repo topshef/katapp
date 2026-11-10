@@ -281,7 +281,9 @@ const _circlesDev = () => { try { return localStorage.getItem("katomia.nerd.v1")
 function circlesReadUrl(){
   const p = new URLSearchParams(location.search)
   const net = p.get("network")
-  if(["mainnet", "testnet", "playnet"].includes(net)){ window.katomiaNet?.set(net); _circlesFilter.network = _circlesMode() }
+  // NAV-WALL1: an address that names the other network is a switch, so it gets the switch warning
+  if(["mainnet", "testnet", "playnet"].includes(net) && net !== window.katomiaNet?.get())
+    window.katomiaNet?.switchTo(net).then(on => { if(on){ _circlesFilter.network = _circlesMode(); try { renderCircles() } catch(_){} } })
   const mine = (p.get("mine") || "").toLowerCase()
   if(mine === "in" || mine === "out") _circlesFilter.mine = new Set([mine])
   const t = (p.get("type") || "").toLowerCase()

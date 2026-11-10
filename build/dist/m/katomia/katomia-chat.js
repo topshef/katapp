@@ -197,7 +197,7 @@
   function system(text, opts) {
     // SIGN-STRIKEMSG1 R3: opts.txid marks a tx-verdict echo — renderLog retires it
     // once the backend's persisted verdict row for the same txid is in state.chat.
-    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, linkText: (opts && opts.linkText) || null, txid: (opts && opts.txid) || null, about: (opts && opts.about) || null, system: true });
+    systemMsgs.push({ id: "sys" + (++_sysN), ts: Date.now(), text: String(text || ""), link: (opts && opts.link) || null, linkText: (opts && opts.linkText) || null, txid: (opts && opts.txid) || null, about: (opts && opts.about) || null, knock: (opts && opts.knock) || null, system: true });
     if (systemMsgs.length > 100) systemMsgs.shift();
     var hub = document.querySelector(".ring-hub");
     if (hub) {
@@ -1171,6 +1171,16 @@
         a2.textContent = m.linkText || "↗";
         main.append(" ", a2);
       }
+      // KNAV-KNOCK1: a card from ANOTHER table — dashed, and one tap from its own table
+      if (m.knock && m.knock.from) {
+        row.classList.add("kchat-row--knock", "kchat-row--knock-" + (m.knock.kind || "info"));
+        var kg = document.createElement("button");
+        kg.type = "button";
+        kg.className = "kchat-knock-go";
+        kg.textContent = "Go to " + m.knock.from + " \u203A";
+        (function (to) { kg.onclick = function (ev) { ev.stopPropagation(); window.katomiaSwitcher && window.katomiaSwitcher.flip(to); }; })(m.knock.from);
+        main.append(" ", kg);
+      }
       // MSG-CONCISE1: "+N" opens the rows this outcome folded away; "−" folds them again
       if (m._fold) {
         var fb = document.createElement("button");
@@ -1646,6 +1656,8 @@
       + '<span class="kaud-slug">' + esc(slug) + '</span>');
     if(p) bits.push('<b>' + p + '</b> playing');
     if(w) bits.push('👀 <b>' + w + '</b> watching');
+    var aw = window.katomiaAway;
+    if(aw) bits.push('<b>' + aw + '</b> away');   // SEATED-AWAY1: seated here, at another table right now
     if(!bits.length){ el.hidden = true; return; }
     var html = bits.join('<span class="kaud-sep"> · </span>')
       + '<span class="kaud-caret" aria-hidden="true">▾</span>';   // KNAV-SWITCH1: the pill opens your tables

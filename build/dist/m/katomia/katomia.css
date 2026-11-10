@@ -3220,6 +3220,16 @@ body.spectating .kchat-send{ display:none; }   /* watchers can't message — ser
 .kchat-fold:hover{ background:rgba(201,180,88,.26); }
 .kchat-fold--open{ background:transparent; }
 .kchat-rep{ font-size:11px; color:#8a7a3f; margin-left:2px; white-space:nowrap; }
+/* KNAV-KNOCK1: a knock from another table — dashed, its own tint, a Go button to that table */
+.kchat-row--knock{ border:1.5px dashed #f5a623; background:#fff8ec; border-radius:8px; }
+.kchat-row--knock-outcome{ border-color:#35b06f; background:transparent; }
+.kchat-knock-go{ font:700 11px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; padding:4px 9px; border-radius:8px; border:0; background:#f5a623; color:#2b1a00; cursor:pointer; vertical-align:1px; }
+.kchat-row--knock-outcome .kchat-knock-go{ background:transparent; color:#2f6fed; border:1px solid rgba(20,28,45,.18); }
+@media (prefers-color-scheme: dark){
+  .kchat-row--knock{ background:#2a2214; border-color:#c98a1a; }
+  .kchat-row--knock-outcome{ background:transparent; border-color:#2f8f5c; }
+  .kchat-row--knock-outcome .kchat-knock-go{ color:#8fb3ff; border-color:rgba(255,255,255,.2); }
+}
 .kchat-cleared{ display:flex; align-items:center; justify-content:center; gap:8px; padding:6px 4px; margin:2px 0 4px;
   font-size:12px; color:#6b7385; border-bottom:1px dashed rgba(20,28,45,.14); }
 .kchat-cleared button{ font:600 12px/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; padding:4px 10px; border-radius:999px;

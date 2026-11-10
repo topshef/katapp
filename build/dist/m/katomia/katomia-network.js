@@ -863,6 +863,7 @@ async function katomiaHandleFrame(msg){
     // DEMO-WATCHERS1: live audience, counted from open sockets server-side.
     window.katomiaWatching = Number.isFinite(data.watching) ? data.watching : null
     window.katomiaPlaying = Number.isFinite(data.playing) ? data.playing : null
+    window.katomiaAway = Number.isFinite(data.away) ? data.away : null   // SEATED-AWAY1: seated, at another table
 
     // PREVIEW-FRAME1: a board pre-loaded by the bubble entry only PAINTS — it never seats your
     // accounts (auto-add, cache restore, autoload link), and it lets its socket go a moment

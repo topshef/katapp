@@ -113,7 +113,7 @@ function kpayTxPath(txid){
 			// so coalescing bursts can't spam the stream). Toasts themselves stay for now —
 			// they're still the only surface in bubbles mode — cull later.
 			try {
-				if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system)
+				if(document.body.dataset.kchatMode === "panel" && window.katomiaChat?.system && !opts.noStream)
 					// linkText forwarded too (2026-08-04) so the panel shows the caller's own
 					// wording ("Inspect it") instead of the bare ↗ fallback. stripTags is a
 					// belt-and-braces sweep: a caller that puts markup in the MESSAGE (as the
