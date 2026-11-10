@@ -5,7 +5,7 @@ import {
   HederaChainId,
 } from "@hashgraph/hedera-wallet-connect";
 import { Transaction, LedgerId } from "@hashgraph/sdk";
-import { deafDecision, shouldResend } from "./kwcDeaf.mjs";   // WC-DEAFSOCKET1 F1
+import { deafDecision, shouldResend, isMobileClient } from "./kwcDeaf.mjs";   // WC-DEAFSOCKET1 F1 (+ F1-MOBILE1)
 // import { createTransactionAlert } from "./dealPage.js";
 
 let dappConnector;
@@ -449,7 +449,11 @@ async function _deafRecover({ accountId, g, signer, transactionBytes, resolve })
     if (g.settled) { diag("settled-during-restart", { ms: Date.now() - t0 }); return }
     const ping2 = await pingSession()
     diag("ping2", { ok: ping2.ok, ms: ping2.ms, reason: ping2.reason, restartMs: Date.now() - t0 })
-    if (!shouldResend({ settled: g.settled, ping2Ok: ping2.ok })) return
+    const mobile = typeof navigator !== "undefined" && isMobileClient(navigator.userAgent, navigator.maxTouchPoints)
+    if (!shouldResend({ settled: g.settled, ping2Ok: ping2.ok, mobile })) {
+      if (mobile && ping2.ok && !g.settled) diag("resend-skipped", { reason: "mobile" })   // F1-MOBILE1
+      return
+    }
     const tx2 = Transaction.fromBytes(transactionBytes)
     if (!tx2.isFrozen()) await tx2.freezeWithSigner(signer)
     diag("resend", { sinceRestartMs: Date.now() - t0 })

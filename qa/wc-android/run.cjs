@@ -22,6 +22,8 @@
 //                   (no restart; R1/R2 broke phone signing by acting on failed pings)
 //   7. swallowed    deaf, and every message is acknowledged before it is dropped, so the relay never
 //                   redelivers: only F1's second ping + resend can bring the signature back
+//   8. phone        F1-MOBILE1: the same swallowed case on an Android page that stays VISIBLE (as during
+//                   order auto-sign): F1 reconnects but must NOT resend — no duplicate in the wallet
 //
 // What it cannot tell: whether Android hands hashpack:// to HashPack and HashPack answers. That
 // only a phone can say; the diag log does (wc:redirect, then board:sign:saved).
@@ -306,6 +308,24 @@ async function main() {
         ok(dg.some(x => x[0] === 'wc:deaf:restart'), 'F1 restarted the transport', JSON.stringify(dg))
         ok(dg.some(x => x[0] === 'wc:deaf:ping2' && x[1].ok === true), 'the wallet answered the second ping', JSON.stringify(dg))
         ok(dg.some(x => x[0] === 'wc:deaf:resend-answered' && x[1].settledAlready === false), 'the answer came from the resend', JSON.stringify(dg))
+      },
+    })
+
+    await scenario(browser, cfg, '8. phone, visible page (order auto-sign): F1 reconnects but never resends (F1-MOBILE1)', {
+      metadata: HASHPACK,
+      run: async (page, sim) => {
+        ok((await page.evaluate(DEAFEN, 'ack')) === 'deaf', 'the link is made deaf (messages acknowledged, then dropped)')
+        const signsBefore = sim.state.requests.filter(x => x.method === 'hedera_signTransaction').length
+        const r = await signDeaf(page, sim, 20)
+        const signsAsked = sim.state.requests.filter(x => x.method === 'hedera_signTransaction').length - signsBefore
+        const dg = await deafDiag(page)
+        log('phone diag:', JSON.stringify(dg).slice(0, 900))
+        ok(dg.some(x => x[0] === 'wc:deaf:restart'), 'F1 reconnected on the visible phone page', JSON.stringify(dg))
+        ok(!dg.some(x => x[0] === 'wc:deaf:resend'), 'no resend on a phone', JSON.stringify(dg))
+        ok(dg.some(x => x[0] === 'wc:deaf:resend-skipped' && x[1].reason === 'mobile') || dg.some(x => x[0] === 'wc:deaf:ping2' && x[1].ok !== true),
+          'the skip is recorded (or the wallet did not answer the second ping)', JSON.stringify(dg))
+        ok(!r.verifies && /KWC-TIMEOUT/.test(r.error || ''), 'a swallowed answer is not rescued on a phone: KWC-TIMEOUT at the window, as before F1', JSON.stringify(r))
+        ok(signsAsked === 1, `the wallet was asked to sign exactly once — no duplicate waiting in it (${signsAsked})`, signsAsked)
       },
     })
   } finally { await browser.close() }

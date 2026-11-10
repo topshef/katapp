@@ -22,6 +22,11 @@
 //   - one restart per 15 s across the page, so concurrent signs cannot make it thrash.
 //   - the resend happens only after a SECOND ping succeeds: the wallet is awake and the link works,
 //     so the first answer was lost and asking again is the only way to get it.
+//   - F1-MOBILE1 (owner 2026-11-10): never resend on a phone. During ORDER AUTO-SIGN a phone's wallet
+//     is never brought forward, so the page stays VISIBLE and the hidden-page guard does not apply;
+//     on 10 Nov 00:12 and 00:17Z the resend left a duplicate approval waiting in HashPack (one was
+//     answered 77 s after its deal had settled). Phones keep the reconnect (harmless; the relay
+//     redelivers an unacknowledged answer after it), desktops keep the resend.
 
 export const DEAF_COOLDOWN_MS = 15_000
 
@@ -34,7 +39,14 @@ export function deafDecision({ settled, connected, visible, sinceLastMs }) {
   return 'restart'
 }
 
-// after the restart: resend only if the wallet answered the second ping and nothing has settled
-export function shouldResend({ settled, ping2Ok }) {
-  return !settled && ping2Ok === true
+// after the restart: resend only if the wallet answered the second ping, nothing has settled, and
+// this is not a phone (F1-MOBILE1)
+export function shouldResend({ settled, ping2Ok, mobile }) {
+  return !settled && ping2Ok === true && !mobile
+}
+
+// a phone or tablet, as far as the page can tell (iPadOS reports a desktop Safari UA but has touch)
+export function isMobileClient(ua, maxTouchPoints) {
+  const s = String(ua || '')
+  return /Android|iPhone|iPad|iPod|Mobile/i.test(s) || (/Macintosh/.test(s) && Number(maxTouchPoints) > 1)
 }
