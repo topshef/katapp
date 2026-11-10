@@ -2897,26 +2897,61 @@ body[data-board-skin="carousel"] .board-trailline--offstage{ visibility: hidden;
   .ring-signarc-under{ stroke: #1c1f24; }
 }
 
-/* ── LOCKTUBE1 (owner 2026-11-10): the lock ring as a rounded bar, with a glow when lit ──────────
-   katomia-board.js boardArcTube lays four strokes on each ring16 lock arc's own path, in the bar's
-   own colour (--tstrip, --tube-edge darker, --tube-core lighter, set per bar): edge at the full 14px,
-   the tone at 10, the core at 5, a white crown at 1.4. The orange states follow the arc through the
-   sibling selector (the tube is the arc's next sibling); !important because the per-bar colours
-   are inline custom properties. No blur on these strokes (DARK-VEIL1: Chrome's "darken websites"
-   repaint flips filtered layers). */
-.ring-locktube{ pointer-events: none; }
-.ring-locktube path{ fill: none; stroke-linecap: butt; pointer-events: none; }
-.ring-locktube-edge { stroke: var(--tube-edge, rgba(0,0,0,.2)); stroke-width: 14; }
-.ring-locktube-body { stroke: var(--tstrip, transparent);     stroke-width: 10; }
-.ring-locktube-core { stroke: var(--tube-core, rgba(255,255,255,.2)); stroke-width: 5; opacity: .9; }
-.ring-locktube-crown{ stroke: rgba(255,255,255,.45); stroke-width: 1.4; }
-.ring-lockarc--locked + .ring-locktube{ --tube-edge: #b8740e !important; --tstrip: #f5a623 !important; --tube-core: #ffcd6b !important; }
-[data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover + .ring-locktube,
-.ring-lockarc.ring-lockpreview + .ring-locktube{ --tube-edge: #d9a868 !important; --tstrip: #f8d5a5 !important; --tube-core: #fde7c9 !important; }
+/* ── BARV2 (owner 2026-11-10 09:48, on LOCKTUBE1: "make it more as if you're looking at a steel bar …
+   the outer border thinner … graduate in a few more strands, more subtle … the peak on the default
+   grey a little darker … it should still remain a bar when it lights … grey is not in play, blue in
+   play, then orange when you lock, then green for signed or red / dotted red for a blocker … the
+   peak a saturated colour, a little almost-white, not as white as now … the same for all colours").
+   katomia-board.js boardArcTube lays EIGHT concentric strokes on each ring16 bar's own path, 14px
+   down to 1px: a 1px dark edge, then 1px steps up to a modest peak. Every strand's colour is
+   derived here from ONE variable, --bar, so a state only names its colour and every colour gets
+   the same profile (dark mode too). States are set on the arc AND on its tube (the tube is the
+   arc's next sibling), so the arc's glow and the tube read the same --bar. Signing arcs carry the
+   tube too, and pulse with it. No blur on these strokes (DARK-VEIL1). */
+:root{
+  --bar-off: #a9a59d;        /* a tube that is off: warm steel, its peak still below the felt */
+  --bar-play: #2b9be0;       /* in play: party to the live proposal, still to lock */
+  --bar-preview: #f8d5a5;    /* hovering your bar / the footer Lock preview */
+  --bar-lock: #f5a623;       /* locked, and waiting to sign */
+  --bar-signed: #35b06f;
+  --bar-signed-dim: #1e7047; /* SIGN-BOUNDARY1 twilight */
+  --bar-failed: #d64541;
+}
 @media (prefers-color-scheme: dark){
-  .ring-locktube-crown{ stroke: rgba(255,255,255,.38); }
-  [data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover + .ring-locktube,
-  .ring-lockarc.ring-lockpreview + .ring-locktube{ --tube-edge: #7d5418 !important; --tstrip: #b9802c !important; --tube-core: #d8a04a !important; }
+  :root{ --bar-off: #61656d; --bar-preview: #b9802c; }
+}
+.ring-locktube{ pointer-events: none; --bar: var(--bar-off); }
+.ring-locktube path{ fill: none; stroke-linecap: butt; pointer-events: none; }
+.ring-locktube-s0{ stroke-width: 14;  stroke: color-mix(in oklab, var(--bar), black 46%); }
+.ring-locktube-s1{ stroke-width: 12;  stroke: color-mix(in oklab, var(--bar), black 26%); }
+.ring-locktube-s2{ stroke-width: 10;  stroke: color-mix(in oklab, var(--bar), black 12%); }
+.ring-locktube-s3{ stroke-width: 8;   stroke: var(--bar); }
+.ring-locktube-s4{ stroke-width: 6;   stroke: color-mix(in oklab, var(--bar), white 10%); }
+.ring-locktube-s5{ stroke-width: 4;   stroke: color-mix(in oklab, var(--bar), white 18%); }
+.ring-locktube-s6{ stroke-width: 2.4; stroke: color-mix(in oklab, var(--bar), white 27%); }
+.ring-locktube-s7{ stroke-width: 1;   stroke: color-mix(in oklab, var(--bar), white 37%); }
+/* the states, weakest first (a later rule wins at equal specificity) */
+.ring-lockarc--target, .ring-lockarc--target + .ring-locktube{ --bar: var(--bar-play); }
+[data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover,
+[data-board-fam~="v16"] .ring-lockarc--open:not(.ring-lockarc--locked):hover + .ring-locktube,
+.ring-lockarc.ring-lockpreview, .ring-lockarc.ring-lockpreview + .ring-locktube{ --bar: var(--bar-preview); }
+.ring-lockarc--locked, .ring-lockarc--locked + .ring-locktube{ --bar: var(--bar-lock); }
+.ring-signarc--pending, .ring-signarc--pending + .ring-locktube{ --bar: var(--bar-lock); }
+.ring-signarc--signed, .ring-signarc--signed + .ring-locktube{ --bar: var(--bar-signed); }
+body[data-signtwilight="1"] .ring-signarc--signed, body[data-signtwilight="1"] .ring-signarc--signed + .ring-locktube{ --bar: var(--bar-signed-dim); }
+.ring-signarc--failed, .ring-signarc--failed + .ring-locktube{ --bar: var(--bar-failed); }
+.ring-signarc--none, .ring-signarc--none + .ring-locktube{ --bar: var(--bar-off); }
+/* signing: the tube pulses with its light; a blocker is a dashed red bar; "no signature needed"
+   is the off tube at half strength */
+.ring-signarc--pending + .ring-locktube{ animation: ring-signpulse 1.6s ease-in-out infinite; }
+.ring-signarc--failed + .ring-locktube path{ stroke-dasharray: 6 6; }
+.ring-signarc--none + .ring-locktube{ opacity: .5; }
+/* in play glows softly in blue (a tube that is on); the other lit states keep their glows below */
+[data-board-fam~="v16"] .ring-lockarc--target:not(.ring-lockarc--locked):not(.ring-signarc):not(.carousel-rim){ filter: drop-shadow(0 0 4px rgba(43,155,224,.55)); }
+/* with Raised lock bars on (the default) YOUR bars carry the bevel filter: keep the glow with it,
+   as the locked state already does */
+body[data-lock-bevel="1"][data-board-fam~="v16"]:not([data-signing="1"]) .ring-lockarc--mine.ring-lockarc--target:not(.ring-lockarc--locked):not(.ring-signarc):not(.carousel-rim){
+  filter: url(#kLockBevel) drop-shadow(0 0 4px rgba(43,155,224,.55));
 }
 /* lit = locked (solid orange) and the Lock preview: the bar glows in its own colour. The bevel on
    YOUR bars (LOCKBEVEL1) is a filter too, so for those the glow is appended to it, not instead. */
@@ -2927,4 +2962,46 @@ body[data-lock-bevel="1"][data-board-fam~="v16"]:not([data-signing="1"]) .ring-l
 }
 body[data-lock-bevel="1"][data-board-fam~="v16"]:not([data-signing="1"]) .ring-lockarc--mine.ring-lockpreview:not(.ring-signarc):not(.carousel-rim){
   filter: url(#kLockBevel) drop-shadow(0 0 4px rgba(245,166,35,.5));
+}
+
+/* ── SIGNVIEW1 (owner 2026-11-10 09:48, signing-mode screenshots) ─────────────────────────────────
+   1. The account numbers float above the spotlight's shade (katomia-board.js copies each felt
+      number, or the spoke id where no felt block fits, over the shade), outlined so they read on the
+      lit felt and on the shade alike. Full strength: they are the labels now, not the felt's grain.
+   2. The status banner ("✍ Ready to submit — collecting signatures · <txid>") moves up into the
+      "N playing" pill's place: who is playing no longer matters once a deal is being signed. It may
+      wrap to two lines instead of ending in "…", and keeps clear of the ☰. */
+.ring-feltnum--float{
+  pointer-events: none;
+  paint-order: stroke fill;
+  stroke: rgba(255, 255, 255, .92);
+  stroke-width: max(2px, .055em);
+  stroke-linejoin: round;
+}
+.ring-feltnum--float .ring-feltnum-sig{ fill-opacity: 1; }
+.ring-feltnum--float .ring-feltnum-pad{ fill-opacity: .5; stroke-opacity: .4; }   /* the padding zeros stay a step back */
+.ring-feltnum--float .ring-feltnum-tail{ fill-opacity: .9; }
+@media (prefers-color-scheme: dark){
+  .ring-feltnum--float{ stroke: rgba(10, 12, 16, .9); }
+}
+body[data-signing="1"] .kaud{ display: none; }
+body[data-signing="1"] #boardBanner{
+  top: 10px;
+  left: 12px;
+  right: calc(var(--kchat-clear-r, 0px) + 60px);
+  transform: none;
+  width: fit-content;
+  max-width: none;
+  margin: 0 auto;
+  border-radius: 14px;
+  line-height: 1.3;
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+}
+/* wider screens show the Katomia wordmark top-left: keep clear of it, still centred on the board */
+@media (min-width: 600px){
+  body[data-signing="1"] #boardBanner{ left: 160px; right: calc(var(--kchat-clear-r, 0px) + 160px); }
 }

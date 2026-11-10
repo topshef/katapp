@@ -7478,24 +7478,19 @@ function boardFocusShade(NS, g, hrx, hry, B, cls){
 // so an optimistic lock that only re-classes the arc still recolours it (CSS sibling selectors).
 // pointer-events:none, so the
 // arc underneath still takes hover and taps. The GLOW for a lit bar is CSS on the arc itself
-// (katomia-board.css LOCKTUBE1). Signing arcs are lights with their own glow: no tube on them.
+// (katomia-board.css LOCKTUBE1/BARV2). Signing arcs get the tube too since BARV2 (owner: one bar style, pulsing when signing).
 function boardArcTube(arc, NS){
   const d = arc.getAttribute("d")
   if(!d) return
   const g = document.createElementNS(NS, "g")
   g.setAttribute("class", "ring-locktube")
   g.setAttribute("aria-hidden", "true")
-  // shade with the bar's OWN colour: a darker edge, the tone, a lighter core (a grey glass tube
-  // over the tone, the first cut, drowned the player colours). The orange states (hover, the
-  // Lock preview, locked) are CSS on the sibling selector .ring-lockarc… + .ring-locktube.
-  const tone = boardHexToRgb(arc.style.getPropertyValue("--tstrip").trim())
-  g.style.setProperty("--tstrip", boardHex(tone))
-  g.style.setProperty("--tube-edge", boardHex(boardMixRgb(tone, [0, 0, 0], 0.30)))
-  g.style.setProperty("--tube-core", boardHex(boardMixRgb(tone, [255, 255, 255], 0.24)))
-  for(const k of ["edge", "body", "core", "crown"]){
+  // BARV2: eight concentric strands, 14px down to 1px. Their colours all come from ONE CSS variable
+  // (--bar, set by the bar's state in katomia-board.css), so every state gets the same steel profile.
+  for(let i = 0; i < 8; i++){
     const p = document.createElementNS(NS, "path")
     p.setAttribute("d", d)
-    p.setAttribute("class", "ring-locktube-" + k)
+    p.setAttribute("class", "ring-locktube-s" + i)
     g.appendChild(p)
   }
   arc.after(g)
@@ -7887,12 +7882,16 @@ function ringFelt(segs, g){
   // FELT-NUMBER1: the number set into the felt takes the spoke id's place where a readable
   // block fits; where it does not (a crowded table on a small phone) the spoke id stays, so
   // no segment ever loses its number. Same labels layer — under the chips.
+  // SIGNVIEW1: kept so the spotlight can float them above its shade (below)
+  const _acctLabels = []
   if(g.etched){
     const feltStyle = boardFeltStyle()
     const band = feltStyle !== "off" ? boardFeltBand(g) : null
     segs.forEach(seg => {
       const felt = band ? ringFeltNumber(seg, g, NS, feltStyle, band) : null
-      segLabels(seg).appendChild(felt || ringEtchLabel(seg, g, NS))
+      const node = felt || ringEtchLabel(seg, g, NS)
+      segLabels(seg).appendChild(node)
+      _acctLabels.push(node)
     })
   }
   // BOARD-IDCOIN1: additive "coin lettering" comparison — same id, curved
@@ -8028,6 +8027,15 @@ function ringFelt(segs, g){
     const shade = boardFocusShade(NS, g, hrx, hry, B,
       "ring-focusshade" + (window.__boardShadeOn ? "" : " ring-focusshade--in"))
     ;(over || top || svg).appendChild(shade)
+    // SIGNVIEW1 (owner 2026-11-10: "once we've locked … most of the board is shaded out … we don't
+    // see clearly the account IDs of each of the segments … use the felt style numbering, bring it
+    // to the top, give it an outline so it works against dark or light"): each account's number,
+    // in its own spot and size, is copied above the shade with an outline (katomia-board.css).
+    for(const n of _acctLabels){
+      const c = n.cloneNode(true)
+      c.classList.add("ring-feltnum--float")
+      ;(over || top || svg).appendChild(c)
+    }
     window.__boardWipeUntil = 0   // spotlight is back on — any pending wipe is moot
   } else if(wipeActive || window.__boardShadeOn){
     // shade was on last paint and turned off THIS render (signing resolved /
@@ -8080,6 +8088,7 @@ function ringFelt(segs, g){
     under.setAttribute("class", "ring-signarc-under")
     layer.appendChild(under)
     layer.appendChild(arc)
+    if(ring16()) boardArcTube(arc, NS)   // BARV2: the signing light is the same rounded bar, pulsing
   })
   _deferredSignArcs.length = 0
 

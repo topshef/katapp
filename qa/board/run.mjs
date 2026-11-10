@@ -1174,7 +1174,9 @@ console.log('24. LOCKBEVEL1: your lock bars are drawn raised (ring arc and carou
     ok(centreSame && changed > 20, `${skin || 'ring'}: with the bevel on the bar is still painted (its middle unchanged) and its edges are shaded`, JSON.stringify({ centreOff: at(off, 15, 15), centreOn: at(on, 15, 15), changed }))
     await set(false); await page.waitForTimeout(100)
     const offNow = await page.evaluate(() => { const el = document.querySelector('.ring-lockarc--mine'); return { f: getComputedStyle(el).filter, s: getComputedStyle(el).boxShadow, saved: JSON.parse(localStorage.getItem(BOARD_PREFS_KEY) || '{}').lockBevel } })
-    ok(offNow.f === 'none' && !offNow.s.includes('inset') && offNow.saved === false, `${skin || 'ring'}: Lab → Raised lock bars off flattens them, and the choice is kept`, JSON.stringify(offNow))
+    // BARV2 (owner 2026-11-10): a bar that is ON (in play, locked) glows — a drop-shadow, not a bevel —
+    // so "flat" means no bevel filter and no inset shadow, not "no filter at all"
+    ok(!offNow.f.includes('kLockBevel') && !offNow.s.includes('inset') && offNow.saved === false, `${skin || 'ring'}: Lab → Raised lock bars off flattens them, and the choice is kept`, JSON.stringify(offNow))
     await set(true)
     // signing: not tappable, not raised
     const active = await page.evaluate(() => { const s = new Set(); Object.values(state.accounts).forEach(x => { if (x.basket.length) s.add(x.id); x.basket.forEach(i => i.fromId && s.add(i.fromId)) }); return [...s] })
