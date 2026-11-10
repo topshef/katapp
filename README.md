@@ -14,7 +14,7 @@ katapp was split out of `topshef/phpjabbers` on 2026-10-19 with its history. See
 | Host | Worker | Built from | Backend |
 | --- | --- | --- | --- |
 | `lab1.katomia.com` (Katomia at `/`) | `katui-lab1` | this repo, branch `lab1`, root `build/dist` (git connection moved here from phpjabbers by the owner, 2026-10-20) | `api.katomia.com` → hapi8 |
-| `labs.katomia.com` (Katomia at `/`) | `katui-labs` | this repo, branch `labs` (LABS-PROMOTE1, 2026-11-10): the same build as lab1, at the commit last PROMOTED | same |
+| `labs.katomia.com` and `app.katomia.com` (Katomia at `/`) | `katui-labs` | this repo, branch `labs` (LABS-PROMOTE1, 2026-11-10): the same build as lab1, at the commit last PROMOTED. app.katomia.com is a second custom domain on the same Worker (APP-DOMAIN1, owner 2026-11-10: "point it to labs … we can split it later") — the domain HashPack is asked to approve | same |
 | (no public host; `katui.tayloa17.workers.dev`) | `katui` | phpjabbers `pilot` — serves only what katapp hands it: `/keaton`, `/deal`, `/deals`, `/legacy`, `/future/v3`, `/assets/js/page-feedback.js` (service binding `PAGES`) | same |
 
 **lab1 is live development; labs is the pseudo-production pointer (owner 2026-11-10).** Both
@@ -28,6 +28,10 @@ Deploying labs: when the Cloudflare git connection for `katui-labs` exists (Work
 → Settings → Build: repo topshef/katapp, branch `labs`, root `build/dist`, deploy command
 `npx wrangler deploy -c wrangler.labs.toml`), the push does it; until then a session deploys it
 from a checkout of that commit: `cd build/dist && npx wrangler deploy -c wrangler.labs.toml`.
+The labs Worker's custom domains come from `LABS_DOMAINS` in `build/variant.env` (labs AND app):
+a deploy replaces the Worker's whole set of custom domains with that list, so a domain added only
+in the dashboard would be detached by the next promotion. To split app.katomia.com off later, give
+it its own Worker and branch and take it out of `LABS_DOMAINS`.
 
 **Katomia is served at the hostname root (ROOT-MOVE1, 2026-10-31):** `/board/t-trio`. Every old
 `/m/katomia/…` page address redirects to the root form, and the old API and file addresses keep

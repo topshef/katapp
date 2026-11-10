@@ -148,8 +148,10 @@ const SIGNPAGE = /^\/(?:m\/sign|future)(?:\/|\/index\.php)?$/;
 const GLOG = /^\/m\/tools\/glog\/latest\/(.+)$/;
 const BRANDS = [
   ['gomint.me',   { name: 'GoMint',  description: 'Tokenizing the future' }],
-  ['katomia.com', { name: 'Katomia', description: 'Multi-party value exchange on Hedera' }],
-  ['katomic.org', { name: 'Katomia', description: 'Multi-party value exchange on Hedera' }],
+  // WC-ICON1 (2026-11-10, for the HashPack listing of app.katomia.com): the icon a wallet shows in its
+  // pairing prompt. A PNG (wallet apps do not all draw SVG) of the site's ring mark, katomia-ring.svg.
+  ['katomia.com', { name: 'Katomia', description: 'Multi-party value exchange on Hedera', icon: '/assets/katomia-icon-256.png' }],
+  ['katomic.org', { name: 'Katomia', description: 'Multi-party value exchange on Hedera', icon: '/assets/katomia-icon-256.png' }],
 ];
 
 function asset(env, request, url, path) {
@@ -185,7 +187,11 @@ async function wcConfig(env, request, url) {
   cfg.metadata = cfg.metadata || {};
   cfg.metadata.url = url.origin;
   for (const [suffix, brand] of BRANDS)
-    if (url.hostname.endsWith(suffix)) { cfg.metadata.name = brand.name; cfg.metadata.description = brand.description; break; }
+    if (url.hostname.endsWith(suffix)) {
+      cfg.metadata.name = brand.name; cfg.metadata.description = brand.description;
+      if (brand.icon && !(cfg.metadata.icons || []).length) cfg.metadata.icons = [url.origin + brand.icon];
+      break;
+    }
   return new Response(JSON.stringify(cfg, null, 2), {
     headers: { 'content-type': 'application/json', 'access-control-allow-origin': '*', 'cache-control': 'no-cache' },
   });

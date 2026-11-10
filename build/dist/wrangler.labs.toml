@@ -3,7 +3,7 @@ main = "router.js"
 compatibility_date = "2026-08-01"
 # LAB2-DEPLOY1: wrangler attaches the custom domain on deploy (zone on the same account).
 # WRANGLER-ROUTES1 (2026-11-10): top level, BEFORE any [table] — after [vars] it was read as a var.
-routes = [{ pattern = "labs.katomia.com", custom_domain = true }]
+routes = [{ pattern = "labs.katomia.com", custom_domain = true }, { pattern = "app.katomia.com", custom_domain = true }]
 [assets]
 directory = "."
 binding = "ASSETS"

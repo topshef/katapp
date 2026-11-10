@@ -11,7 +11,7 @@ import path from 'node:path';
 import assert from 'node:assert/strict';
 
 const DIST = new URL('./dist/', import.meta.url).pathname;
-const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
+const TYPES = { '.png': 'image/png', '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.json': 'application/json', '.svg': 'image/svg+xml' };
 
 const ASSETS = { async fetch(req) {
   const p = decodeURIComponent(new URL(req.url).pathname);
@@ -105,6 +105,15 @@ if (process.argv.includes('--serve')) {
   // domain-aware walletconnect config
   const wc = await (await call('/vendor/walletconnect/config.json')).json();
   assert.equal(wc.metadata.url, 'https://katui.example');
+  assert.deepEqual(wc.metadata.icons, [], 'no brand, no icon');
+  // APP-DOMAIN1 + WC-ICON1: on a Katomia host the wallet sees that host, the Katomia name and a PNG icon that serves
+  const wcApp = await (await call('/vendor/walletconnect/config.json', undefined, 'https://app.katomia.com')).json();
+  assert.equal(wcApp.metadata.url, 'https://app.katomia.com');
+  assert.equal(wcApp.metadata.name, 'Katomia');
+  assert.deepEqual(wcApp.metadata.icons, ['https://app.katomia.com/assets/katomia-icon-256.png']);
+  const icon = await call('/assets/katomia-icon-256.png', undefined, 'https://app.katomia.com');
+  assert.equal(icon.status, 200, 'the WalletConnect icon serves');
+  assert.match(icon.headers.get('content-type') || '', /image\/png/);
   // same-origin API: the create form POSTs /hapi/katomia/create (ROOT-MOVE1; it was ./hapi/create
   // under /m/katomia) → alias /hapi/katomia/create (= backend /katomia/create), body intact
   r = await call('/hapi/katomia/create', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"qa"}' });

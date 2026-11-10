@@ -18,7 +18,9 @@ register is `topshef/kmigrate` (record `katomia-labs`); log changes there as oth
   backend's whole namespace. Never write `/m/katomia` into a link again. labs.katomia.com
   serves this repo's build too since LABS-PROMOTE1 (below). Status and history: kmigrate
   `modules/katomia-labs.json`; plan https://claude.ai/artifact/5e63151e-bbfd-4d32-b9e5-752c8a8eb13e.
-- **labs.katomia.com is built from this repo too (LABS-PROMOTE1, owner 2026-11-10).** Worker
+- **labs.katomia.com is built from this repo too (LABS-PROMOTE1, owner 2026-11-10)**, and so is
+  **app.katomia.com** (APP-DOMAIN1: a second custom domain on the same Worker, listed in
+  `LABS_DOMAINS` — never attach it in the dashboard alone, a deploy would detach it). Worker
   `katui-labs`, branch `labs`, the same bundle with `build/dist/wrangler.labs.toml`. lab1 is live
   development; labs is the pseudo-production pointer: **promote only a commit already live and
   checked on lab1** (`git push origin <commit>:labs`, fast-forward, never force), then deploy it

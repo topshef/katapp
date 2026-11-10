@@ -263,18 +263,29 @@ service = "$PAGES_SERVICE"
 ALIAS_ORIGIN = "https://${ALIAS%%/*}"
 WT
 
-# LABS-PROMOTE1: the labs Worker deploys THIS bundle with its own name and custom domain
-# (build/variant.env LABS_NAME / LABS_DOMAIN). Same bindings, same router, same files.
+# LABS-PROMOTE1: the labs Worker deploys THIS bundle with its own name and custom domains
+# (build/variant.env LABS_NAME / LABS_DOMAINS). Same bindings, same router, same files.
+# APP-DOMAIN1 (owner 2026-11-10: "app.katomia.com ... point it to labs ... they should serve the same
+# site for now"): LABS_DOMAINS is a LIST, and every name in it must be here — wrangler's deploy
+# replaces the Worker's whole set of custom domains with this list, so a domain attached only in
+# Cloudflare would be detached by the next labs deploy.
+LABS_DOMAINS="${LABS_DOMAINS:-${LABS_DOMAIN:-}}"
 if [ -n "${LABS_NAME:-}" ]; then
   [ "$LABS_NAME" = "$NAME" ] && { echo "LABS_NAME=$LABS_NAME is the lab Worker itself"; exit 1; }
   [ "$LABS_NAME" = "$PAGES_SERVICE" ] && { echo "LABS_NAME=$LABS_NAME is the PAGES Worker — the hand-through would loop"; exit 1; }
-  echo "→ wrangler.labs.toml ($LABS_NAME${LABS_DOMAIN:+ on $LABS_DOMAIN}; deployed from branch labs)"
-  # the name and the custom domain swapped IN PLACE (the routes line sits at the top level, before
+  echo "→ wrangler.labs.toml ($LABS_NAME${LABS_DOMAINS:+ on $LABS_DOMAINS}; deployed from branch labs)"
+  # the name and the routes line swapped IN PLACE (the routes line sits at the top level, before
   # any [table] — WRANGLER-ROUTES1); a labs variant without a domain drops the routes line
-  if [ -n "${LABS_DOMAIN:-}" ]; then DOMAIN_SED="s/^routes = \[{ pattern = \"$KATUI_DOMAIN\"/routes = [{ pattern = \"$LABS_DOMAIN\"/"; else DOMAIN_SED='/^routes = \[/d'; fi
+  if [ -n "$LABS_DOMAINS" ]; then
+    LABS_ROUTES="routes = [$(for d in $LABS_DOMAINS; do printf '{ pattern = "%s", custom_domain = true }, ' "$d"; done | sed 's/, $//')]"
+    DOMAIN_SED="s|^routes = \\[.*\\]\$|$LABS_ROUTES|"
+  else DOMAIN_SED='/^routes = \[/d'; fi
   sed -e "s/^name = \"$NAME\"$/name = \"$LABS_NAME\"/" -e "$DOMAIN_SED" "$DIST/wrangler.toml" > "$DIST/wrangler.labs.toml"
   grep -q "^name = \"$LABS_NAME\"$" "$DIST/wrangler.labs.toml" || { echo "wrangler.labs.toml: rename failed"; exit 1; }
-  [ -z "${LABS_DOMAIN:-}" ] || grep -q "pattern = \"$LABS_DOMAIN\"" "$DIST/wrangler.labs.toml" || { echo "wrangler.labs.toml: domain swap failed"; exit 1; }
+  for d in $LABS_DOMAINS; do
+    grep -q "pattern = \"$d\"" "$DIST/wrangler.labs.toml" || { echo "wrangler.labs.toml: domain $d missing"; exit 1; }
+  done
+  ! grep -q "pattern = \"$KATUI_DOMAIN\"" "$DIST/wrangler.labs.toml" || { echo "wrangler.labs.toml: still names $KATUI_DOMAIN"; exit 1; }
 fi
 
 echo "→ .assetsignore (keep Worker config + wrangler's own droppings out of the PUBLIC bundle:"
