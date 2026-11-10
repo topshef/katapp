@@ -179,13 +179,21 @@
     const H = here()
     if(!id || id === H) return
     const g = games && games.find(x => x && x.id === id)
-    const sameKind = isBook(g) === (document.body.dataset.tradingMode === "orderBook")
+    // NAV-BOOKPATH1 (owner 2026-11-10: "navigating from that drop down offers the /board link, which is not
+    // working … in order book mode, it's /game"): an order book opens at /game/<id>, its own page — never a
+    // soft flip on the board. A proposal circle flips in place (or loads /board/<id> from elsewhere).
+    if(isBook(g)){
+      window.kdiag?.("board:nav:flip", { from: H, to: id, book: true })
+      location.assign(location.pathname.replace(/\/(board|game)\/[^/]+.*$/, "") + "/game/" + encodeURIComponent(id))
+      return
+    }
+    const sameKind = document.body.dataset.tradingMode !== "orderBook"
     window.kdiag?.("board:nav:flip", { from: H, to: id, soft: sameKind })
     if(sameKind && typeof switchGame === "function" && document.getElementById("boardRoot")){
       try { window.__kMovedTo = null } catch(_){}
       switchGame(id)   // NAV-BACK1: adds a Back step
     } else {
-      location.assign(location.pathname.replace(/\/board\/[^/]+/, "/board/" + encodeURIComponent(id)) + location.search)
+      location.assign(location.pathname.replace(/\/(board|game)\/[^/]+.*$/, "") + "/board/" + encodeURIComponent(id))
     }
   }
 
@@ -241,6 +249,25 @@
   }
   setInterval(checkWall, 1000)
 
+  // NAV-BOOKPATH1: an order book's page is /game/<id>. Opened at /board/<id> (an old link, Back, a typed
+  // address) it forwards there. The board's ring view of a book — the owner, same day: "incorrect behavior
+  // … but quite cool … watching the live trades … let's put a URL switch" — stays behind ?ringview=1.
+  let bookChecked = ""
+  function checkBookPath(){
+    const H = here()
+    if(!H || bookChecked === H || !document.getElementById("boardRoot")) return
+    const mode = document.body.dataset.tradingMode
+    if(!mode) return
+    bookChecked = H
+    if(mode !== "orderBook") return
+    let q
+    try { q = new URLSearchParams(location.search) } catch(_){ return }
+    if(q.has("ringview") || q.has("demo") || window.KATOMIA_PREVIEW) return
+    window.kdiag?.("board:nav:bookpath", { id: H })
+    location.replace(location.pathname.replace(/\/board\/[^/]+.*$/, "") + "/game/" + encodeURIComponent(H) + location.search + location.hash)
+  }
+  setInterval(checkBookPath, 500)
+
   // ── KNAV-KNOCK1 (owner 2026-11-10, navigation pass part 2: "a circle that needs your attention can
   // message you in the current chat, but you make it clear from the style of the message that that's a
   // message coming in from another circle"). Every 15 s while this tab is visible, the games list says
@@ -278,6 +305,12 @@
     const N = net(), H = here(), seen = new Set()
     for(const g of list){
       if(!g || g.network !== N || g.id === H) continue
+      // NAV-KNOCKRACE1 (owner 2026-11-10: "it posted in the message stream a link to go to the new thing,
+      // but I didn't need to go … it automatically forwarded it to me"): a deal struck here settles in a
+      // side circle and the board takes you there itself (game_moved) — a poll landing in between saw "a
+      // deal you're in at t-prop~N" and knocked. Side circles of this table, and the table you're being
+      // moved to, never knock.
+      if(parentOf(g.id) === H || g.id === window.__kMovedTo || g.id === window.__kSwitchingTo) continue
       for(const d of (g.you && g.you.signing) || []){
         if(!d || !d.txid) continue
         seen.add(d.txid)
@@ -287,6 +320,7 @@
         const secs = d.until ? Math.round((d.until - Date.now()) / 1000) : null
         const left = secs == null ? "" : secs > 5400 ? " · window ends " + new Date(d.until).toLocaleString([], { weekday: "short", hour: "2-digit", minute: "2-digit" })
           : secs > 0 ? " · " + secs + "s left" : ""
+        if(parentOf(g.id) === H) continue
         const msg = `✍ A deal you're in is being signed at ${g.id}${left}.`
         knock(msg, { about: d.txid, knock: { from: g.id, kind: "sign" } })
         window.kdiag?.("board:nav:knock", { from: g.id, txid: d.txid, secs })

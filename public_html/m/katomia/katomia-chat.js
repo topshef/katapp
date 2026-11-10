@@ -677,9 +677,12 @@
     // txid by boardShowResult) retires so the verdict shows exactly once. Only rows
     // that LEAD with the verdict emoji count: strike rows also carry the txid in
     // their text and must not suppress a verdict still in flight.
-    if (systemMsgs.length) {
+    // NAV-KNOCKRACE1: a knock about the table you're at is moot while you're there
+    var hereId = circleSlug();
+    var sysLive = systemMsgs.filter(function (s) { return !(s.knock && s.knock.from === hereId && s.knock.kind !== "outcome"); });
+    if (sysLive.length) {
       var verdictRows = chat.filter(function (m) { return m.system && /^[✅⌛]/.test(m.text || ""); });
-      var sys = !verdictRows.length ? systemMsgs : systemMsgs.filter(function (s) {
+      var sys = !verdictRows.length ? sysLive : sysLive.filter(function (s) {
         return !(s.txid && verdictRows.some(function (m) {
           return (m.linkText || "").indexOf(s.txid) >= 0 || (m.text || "").indexOf(s.txid) >= 0;
         }));
