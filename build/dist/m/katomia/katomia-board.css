@@ -2971,18 +2971,34 @@ body[data-lock-bevel="1"][data-board-fam~="v16"]:not([data-signing="1"]) .ring-l
    2. The status banner ("✍ Ready to submit — collecting signatures · <txid>") moves up into the
       "N playing" pill's place: who is playing no longer matters once a deal is being signed. It may
       wrap to two lines instead of ending in "…", and keeps clear of the ☰. */
+/* SIGNLABEL1 (owner 2026-11-10): the outline "looks a little bit 90s" — plain text, brought forward.
+   Default LIFT: a 1px light rim and a soft drop shadow, so a number reads on the lit felt and on the
+   shade alike. GLOW: a soft halo. OUTLINE: the first cut. Lab → "Signing labels" switches them.
+   (These are CSS filters; Chrome's own "darken websites" repaint can flip filtered layers — see
+   DARK-VEIL1 — but it is not running on the owner's phone (DARK-DIAG1: chromeAutoDark false), and
+   Outline stays filter-free for anyone it bites.) */
 .ring-feltnum--float{
   pointer-events: none;
+  filter: drop-shadow(0 0 1px rgba(255, 255, 255, .9)) drop-shadow(0 3px 6px rgba(0, 0, 0, .45));
+}
+.ring-feltnum--float .ring-feltnum-sig{ fill-opacity: 1; }
+.ring-feltnum--float .ring-feltnum-pad{ fill-opacity: .5; }
+.ring-feltnum--float .ring-feltnum-tail{ fill-opacity: .95; }
+body[data-sign-label="glow"] .ring-feltnum--float{
+  filter: drop-shadow(0 0 1.5px rgba(255, 255, 255, .95)) drop-shadow(0 0 7px rgba(255, 255, 255, .75));
+}
+body[data-sign-label="outline"] .ring-feltnum--float{
+  filter: none;
   paint-order: stroke fill;
   stroke: rgba(255, 255, 255, .92);
   stroke-width: max(2px, .055em);
   stroke-linejoin: round;
 }
-.ring-feltnum--float .ring-feltnum-sig{ fill-opacity: 1; }
-.ring-feltnum--float .ring-feltnum-pad{ fill-opacity: .5; stroke-opacity: .4; }   /* the padding zeros stay a step back */
-.ring-feltnum--float .ring-feltnum-tail{ fill-opacity: .9; }
+body[data-sign-label="outline"] .ring-feltnum--float .ring-feltnum-pad{ stroke-opacity: .4; }
 @media (prefers-color-scheme: dark){
-  .ring-feltnum--float{ stroke: rgba(10, 12, 16, .9); }
+  .ring-feltnum--float{ filter: drop-shadow(0 0 1px rgba(0, 0, 0, .9)) drop-shadow(0 3px 8px rgba(0, 0, 0, .7)); }
+  body[data-sign-label="glow"] .ring-feltnum--float{ filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, .95)) drop-shadow(0 0 8px rgba(0, 0, 0, .8)); }
+  body[data-sign-label="outline"] .ring-feltnum--float{ stroke: rgba(10, 12, 16, .9); }
 }
 body[data-signing="1"] .kaud{ display: none; }
 body[data-signing="1"] #boardBanner{
@@ -3004,4 +3020,27 @@ body[data-signing="1"] #boardBanner{
 /* wider screens show the Katomia wordmark top-left: keep clear of it, still centred on the board */
 @media (min-width: 600px){
   body[data-signing="1"] #boardBanner{ left: 160px; right: calc(var(--kchat-clear-r, 0px) + 160px); }
+}
+
+/* CIRCLE-SLUG1 (owner 2026-11-10): which circle you are in, always on screen — the header pill leads
+   with the circle's id, and the signing banner (which takes the pill's place) carries it too. */
+.kaud .kaud-slug{
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  letter-spacing: .01em;
+  max-width: 42vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+body[data-signing="1"] #boardBanner[data-slug]:not([data-slug=""])::before{
+  content: attr(data-slug);
+  display: inline-block;
+  margin-right: 7px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .16);
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-weight: 700;
+  font-size: .92em;
 }

@@ -430,6 +430,14 @@ $katomiaInCircle = in_array($katomiaPage, ['board', 'game'], true);
                   Raised lock bars
               </label>
               <label class="board-settings-label">
+                  Signing labels
+                  <select id="boardPrefSignLabel" title="Lab (SIGNLABEL1): how each account's number floats above the dark shade while a deal is being signed. Lifted = a thin light rim and a soft shadow; Glow = a soft halo; Outline = an outlined number. ?signlabel=lift|glow|outline on the address overrides for one visit.">
+                    <option value="lift">Lifted</option>
+                    <option value="glow">Glow</option>
+                    <option value="outline">Outline</option>
+                  </select>
+              </label>
+              <label class="board-settings-label">
                   <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
                   Chips hug the ring
               </label>

@@ -13,7 +13,7 @@
        fade-in before first paint). -->
   <script src="kfade.js?v=1793403648"></script>
   <link rel="stylesheet" href="katomia.css?v=1794231726" />
-<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794306535" />
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1793403648">  <link rel="stylesheet" href="katomia-board.css?v=1794308765" />
   <title>katomia — board</title>
 </head>
 
@@ -395,6 +395,14 @@
               <label class="board-settings-label">
                   <input type="checkbox" id="boardPrefLockBevel" title="Lab (LOCKBEVEL1): your lock bars drawn raised — a light top edge, a faint dark lower edge and a soft shadow — as the cue that they can be tapped. Untick to compare with the flat bar.">
                   Raised lock bars
+              </label>
+              <label class="board-settings-label">
+                  Signing labels
+                  <select id="boardPrefSignLabel" title="Lab (SIGNLABEL1): how each account's number floats above the dark shade while a deal is being signed. Lifted = a thin light rim and a soft shadow; Glow = a soft halo; Outline = an outlined number. ?signlabel=lift|glow|outline on the address overrides for one visit.">
+                    <option value="lift">Lifted</option>
+                    <option value="glow">Glow</option>
+                    <option value="outline">Outline</option>
+                  </select>
               </label>
               <label class="board-settings-label">
                   <input type="checkbox" id="boardPrefHugRing" title="Lab: organic store blobs home slightly closer to the ring — a mild inward bias; the reserved rim band still keeps chips off the ring itself">
@@ -1401,7 +1409,7 @@ window.katomiaNet = (() => {
 <script>  window.CONFIG = {
     HAPI_BASE: "api.katomia.com/hapi"
   }
-  window.KFLOW_COMMIT = "74c5404"
+  window.KFLOW_COMMIT = "0a3b7bb"
 </script>
 <!-- KFLOW1: flow-fingerprint checkpoints — first, so every later script can call window.kflow -->
 <script src="kflow.js?v=1793403648"></script>
@@ -1459,14 +1467,14 @@ window.katomiaNet = (() => {
      katomia-board.js, whose reporters feed it and whose boardShowResult
      subscribes to it at module top level. -->
 <script src="katomia-txstatus.js?v=1793403648"></script>
-<script src="katomia-board.js?v=1794305946"></script>
+<script src="katomia-board.js?v=1794308765"></script>
 <script src="katomia-carousel.js?v=1793403648"></script> <!-- CAROUSEL1: the two-stripe skin (?skin=carousel), after the board so it sees its state -->
 <script src="katomia-tickets.js?v=1793403648"></script> <!-- PROP-TICKETS1: dark unless ?tickets=1 -->
 
 <!-- BOARD-CHAT1 (user 2026-07-30): renders state.chat — speech bubbles on the
      speaker's wedge + a glassy transcript. Must load AFTER katomia-board.js,
      which owns the _boardChatAnchors this reads. -->
-<script src="katomia-chat.js?v=1793403648"></script>
+<script src="katomia-chat.js?v=1794308765"></script>
 <!-- VIEW-API1 (owner 2026-11-06): window.katomiaView — read and change this browser's view
      through the menu's own controls (for an assistant, a test, later a "mirror my view"). -->
 <script src="katomia-view.js?v=1793993200"></script>

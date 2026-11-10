@@ -324,7 +324,7 @@ function boardSavePrefs(){
       netView: boardNetView, partyOnly: boardPartyOnly,
       maxSegments: boardMaxSegments, animSpeed: boardAnimSpeed,
       trailResidual: boardTrailResidual, layoutMode: boardLayoutMode,
-      zoneWalls: boardZoneWalls, hugRing: boardHugRing, lockBevel: boardLockBevel,
+      zoneWalls: boardZoneWalls, hugRing: boardHugRing, lockBevel: boardLockBevel, signLabel: boardSignLabel,
       stickyChips: boardStickyChips, autoArrange: boardAutoArrange, chipScale: boardChipScale,
       chatMode: boardChatMode, avatarPos: boardAvatarPos,
       counterMode: boardCounterMode, chipStyle: boardChipStyle, chipShape: boardChipShape,
@@ -482,6 +482,13 @@ let boardHugRing = _bp.hugRing ?? false
 // LOCKBEVEL1 (owner 2026-10-13): your lock bars drawn raised — the cue that they are pressable.
 // Default on; View → Lab → "Raised lock bars" turns it off for an A/B look (nerd only).
 let boardLockBevel = _bp.lockBevel ?? true
+// SIGNLABEL1 (owner 2026-11-10: the outlined floating numbers "look a little bit 90s … normal text,
+// but give it a contrasting shadow … or a glow … try a few ideas and pick one … so if I want to
+// switch it, we can"): how the account numbers float above the signing shade. lift (default) = a
+// thin light rim and a soft drop shadow; glow = a soft halo; outline = SIGNVIEW1's first cut.
+// View → Lab → "Signing labels", or ?signlabel=lift|glow|outline for one visit.
+let boardSignLabel = ["lift", "glow", "outline"].includes(_bp.signLabel) ? _bp.signLabel : "lift"
+try { const q = new URLSearchParams(location.search).get("signlabel"); if(["lift", "glow", "outline"].includes(q)) boardSignLabel = q } catch(_){}
 // 🧪 lab (user 2026-07-16, board-game feel / BOARD-ARRANGE1 first slice):
 // once the sim settles, chips become STICKY — springs skip them and
 // collisions can't move them (a newcomer takes the whole separation push and
@@ -807,6 +814,8 @@ function boardSetBanner(html){
     document.body.appendChild(b)
   }
   b.innerHTML = html
+  // CIRCLE-SLUG1: the banner stands in for the header pill while signing — it names the circle too
+  try { b.dataset.slug = window.katomiaCircleSlug?.() || "" } catch(_){}
 }
 
 function boardUpdateBanner(){
@@ -1450,6 +1459,15 @@ function boardSyncPrefsUI(){
       boardLockBevel = lockBevel.checked
       boardSavePrefs()
       boardApplyLockBevel()   // CSS only — nothing to re-render
+    }
+  }
+  const signLabel = document.getElementById("boardPrefSignLabel")
+  if(signLabel){
+    signLabel.value = boardSignLabel
+    signLabel.onchange = () => {
+      boardSignLabel = signLabel.value
+      boardSavePrefs()
+      document.body.dataset.signLabel = boardSignLabel   // CSS only (SIGNLABEL1)
     }
   }
   const hugRing = document.getElementById("boardPrefHugRing")
@@ -7549,6 +7567,7 @@ function boardLockBevelDefs(){
 function boardApplyLockBevel(){
   boardLockBevelDefs()
   document.body.dataset.lockBevel = boardLockBevel ? "1" : "0"
+  document.body.dataset.signLabel = boardSignLabel   // SIGNLABEL1
 }
 
 function boardWireLockBar(el, account, locked){

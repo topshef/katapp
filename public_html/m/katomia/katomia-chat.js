@@ -1460,16 +1460,34 @@
   // Lives here because this file already runs after every board paint.
   // DEMO-WATCHERS1: render the live audience. Only shown once there is someone to
   // report — a badge reading "0 watching" on a quiet board is noise, not information.
+  // CIRCLE-SLUG1 (owner 2026-11-10: "on mobile it's hard to tell what circle you're in … put the slug
+  // of the game we're in next to 1 playing, as one chip"): the pill always leads with the circle's id
+  // (t-prop, m-prop~18), the name on hover/long-press; the audience counts follow when there are any.
+  // The signing banner carries the same id while it stands in for the pill (katomia-board.js).
+  function circleSlug(){
+    try { return (typeof gameMeta !== "undefined" && gameMeta && gameMeta.id) || (typeof gameId !== "undefined" && gameId) || ""; }
+    catch(_){ return ""; }
+  }
+  function circleName(){
+    try { return (typeof gameMeta !== "undefined" && gameMeta && gameMeta.profile && gameMeta.profile.name) || ""; }
+    catch(_){ return ""; }
+  }
+  window.katomiaCircleSlug = circleSlug;
   function syncAudience(){
     var el = document.getElementById("boardAudience");
     if(!el) return;
     var w = window.katomiaWatching, p = window.katomiaPlaying;
-    if(!Number.isFinite(w) && !Number.isFinite(p)){ el.hidden = true; return; }
+    var esc = function(t){ return String(t).replace(/[&<>"]/g, function(c){ return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); };
+    var slug = circleSlug();
     var bits = [];
+    if(slug) bits.push('<span class="kaud-slug">' + esc(slug) + '</span>');
     if(p) bits.push('<b>' + p + '</b> playing');
     if(w) bits.push('👀 <b>' + w + '</b> watching');
     if(!bits.length){ el.hidden = true; return; }
-    el.innerHTML = bits.join('<span class="kaud-sep"> · </span>');
+    var html = bits.join('<span class="kaud-sep"> · </span>');
+    if(el.innerHTML !== html) el.innerHTML = html;
+    var name = circleName();
+    if(name) el.title = name + (slug ? " (" + slug + ")" : ""); else el.removeAttribute("title");
     el.hidden = false;
   }
 
