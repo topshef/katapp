@@ -32,7 +32,8 @@ register is `topshef/kmigrate` (record `katomia-labs`); log changes there as oth
 - **Report the footer build stamp** the owner will see (`build <parent sha> · <built UTC>`), and
   never claim a fix is live before it is pushed and the build-info shows it.
 - Tests: `node build/router.test.mjs`, `node build/router.e2e.mjs`, `qa/board` (`node run.mjs`),
-  `qa/sign` (`node run.mjs`).
+  `qa/sign` (`node run.mjs`), `node qa/decode/strict-decode.test.mjs` (the widget decoder refuses
+  bytes the network could read differently, WIDGET-STRICT1; it also reads 138 real records as before).
 - **Other sessions share the live testnet** (lab1, the backend, the demo bots). Read kmigrate
   `SESSIONS.md` before changing anything live: checks and tests observe and record, claim a
   todo before changing what it covers, rebase rather than overwrite, and never trade as the demo

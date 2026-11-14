@@ -38,6 +38,9 @@ function toBytes(input) {
 	if (typeof input === 'string') {
 		const hex = input.trim().toLowerCase().replace(/^0x/, '')
 		if (hex.length % 2) throw new Error('protobuf: odd-length hex')
+		// WIDGET-STRICT1: parseInt('zz', 16) is NaN, which a Uint8Array stores as 0, so
+		// non-hex used to decode quietly as zero bytes. Refuse it instead.
+		if (!/^[0-9a-f]*$/.test(hex)) throw new Error('protobuf: not a hex string')
 		const out = new Uint8Array(hex.length / 2)
 		for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.substr(i * 2, 2), 16)
 		return out
@@ -71,8 +74,26 @@ function zigzag(n) {
 	return (n >> 1n) ^ -(n & 1n)
 }
 
+// WIDGET-STRICT1 (2026-11-14, kmigrate SEC-SILENT1 finding KA-3; the same rule as KSIGN-STRICT1 in
+// ksig ksign/lib/protobuf.js and KEA-BYTES1 in hbarlive_hts kea/decode.js). A value written twice is
+// read differently by different parsers. Tested on Hedera testnet that day: the network REFUSES a
+// repeated block but ACCEPTS a repeated single value and uses the LAST copy, while this decoder took
+// the FIRST. So crafted bytes could pass the widget's "✔ Checked" (and the browser KEA's rules) with
+// "100 to the winner" while the network moved 5,000 HBAR elsewhere. Anything the network could read
+// differently from what this decoder reports is now refused: a repeated single field, two operations
+// in one body, a key of two kinds, per-node copies that differ in more than the node. Nothing honest
+// is lost: the Hedera SDK and the backend never write a field twice (checked against 138 real pooled
+// records, testnet and mainnet, on 2026-11-14).
+export class AmbiguousTransaction extends Error {
+	constructor(msg) {
+		super(`protobuf: ${msg}. Another reader (the network takes the last copy) could see a different transaction, so it is refused`)
+		this.code = 'KSIG_AMBIGUOUS'
+	}
+}
+
 // Walk one message level. Returns a Map of fieldNumber → array of raw values
 // (Uint8Array for LEN, BigInt for VARINT/I64/I32). Repeated fields collect.
+// A length that runs past the end is refused (it used to be cut short silently).
 export function scanFields(buf) {
 	const fields = new Map()
 	let o = 0
@@ -89,6 +110,7 @@ export function scanFields(buf) {
 			let len
 			;[len, o] = readVarint(buf, o)
 			const n = Number(len)
+			if (o + n > buf.length) throw new Error(`protobuf: field ${field} claims ${n} bytes but only ${buf.length - o} remain`)
 			push(field, buf.slice(o, o + n))
 			o += n
 		} else if (wire === WIRE.VARINT) {
@@ -96,8 +118,10 @@ export function scanFields(buf) {
 			;[v, o] = readVarint(buf, o)
 			push(field, v)
 		} else if (wire === WIRE.I64) {
+			if (o + 8 > buf.length) throw new Error(`protobuf: field ${field} overruns the buffer`)
 			push(field, buf.slice(o, o + 8)); o += 8
 		} else if (wire === WIRE.I32) {
+			if (o + 4 > buf.length) throw new Error(`protobuf: field ${field} overruns the buffer`)
 			push(field, buf.slice(o, o + 4)); o += 4
 		} else {
 			throw new Error(`protobuf: unsupported wire type ${wire} (field ${field})`)
@@ -106,8 +130,14 @@ export function scanFields(buf) {
 	return fields
 }
 
-// convenience: first value of a field, or undefined
-const first = (fields, n) => (fields.get(n) || [])[0]
+// the one value of a single field, or undefined. A single field written twice is refused (WIDGET-STRICT1).
+const first = (fields, n) => {
+	const v = fields.get(n)
+	if (v && v.length > 1) throw new AmbiguousTransaction(`field ${n} appears ${v.length} times where only one is allowed`)
+	return v ? v[0] : undefined
+}
+// the first entry of a field that legitimately repeats: a TransactionList's per-node transactions
+const firstOfList = (fields, n) => (fields.get(n) || [])[0]
 const all = (fields, n) => fields.get(n) || []
 
 // ── Hedera message decoders ──────────────────────────────────────────────────
@@ -203,6 +233,10 @@ function decodeCryptoTransfer(buf) {
 // SignaturePair { pubKeyPrefix=1, ed25519=3, ECDSASecp256k1=6, ... }
 function decodeSignaturePair(buf) {
 	const f = scanFields(buf)
+	// a pair is one prefix and ONE signature of one kind; two kinds at once would be read
+	// either way by different parsers (WIDGET-STRICT1)
+	const kinds = [...f.keys()].filter(k => k !== 1)
+	if (kinds.length > 1) throw new AmbiguousTransaction(`a signature pair carries ${kinds.length} kinds at once (fields ${kinds.join(', ')})`)
 	const prefix = first(f, 1)
 	const ed = first(f, 3)
 	const ecdsa = first(f, 6)
@@ -231,8 +265,16 @@ function decodeDuration(buf) {
 // TransactionBody — only the fields we need to verify a transfer.
 //   transactionID=1, nodeAccountID=2, transactionFee=3, validDuration=4,
 //   memo=6, cryptoTransfer=14
+// The body's header fields (transactionID, node, fee, validDuration, generateRecord, memo,
+// max_custom_fees=73, batch_key=1001); every other top-level field is an operation, and a body
+// carries exactly one (the network refuses two, and a reader that picks one would show the wrong
+// one). The same set as KSIGN-STRICT1.
+const BODY_HEADER_FIELDS = new Set([1, 2, 3, 4, 5, 6, 73, 1001])
+
 function decodeTransactionBody(buf) {
 	const f = scanFields(buf)
+	const ops = [...f.keys()].filter(k => !BODY_HEADER_FIELDS.has(k))
+	if (ops.length > 1) throw new AmbiguousTransaction(`more than one operation in one body (fields ${ops.join(', ')})`)
 	const memoBytes = first(f, 6)
 	const ctBytes = first(f, 14)
 	return {
@@ -246,6 +288,42 @@ function decodeTransactionBody(buf) {
 	}
 }
 
+// A body's bytes with its nodeAccountID (field 2) left out, as a hex string, for comparing the
+// per-node copies of one transaction. Walks the top level only; the bytes are copied as written.
+function bodyWithoutNode(body) {
+	const keep = []
+	let o = 0
+	while (o < body.length) {
+		const start = o
+		let tag
+		;[tag, o] = readVarint(body, o)
+		const field = Number(tag >> 3n), wire = Number(tag & 7n)
+		if (wire === WIRE.LEN) { let len; [len, o] = readVarint(body, o); o += Number(len) }
+		else if (wire === WIRE.VARINT) { ;[, o] = readVarint(body, o) }
+		else if (wire === WIRE.I64) o += 8
+		else if (wire === WIRE.I32) o += 4
+		else throw new Error(`protobuf: unsupported wire type ${wire} (field ${field})`)
+		if (o > body.length) throw new Error(`protobuf: field ${field} overruns the body`)
+		if (field !== 2) keep.push(bytesToHex(body.subarray(start, o)))
+	}
+	return keep.join('')
+}
+
+// Every per-node copy in a TransactionList must be the same transaction apart from the node it is
+// addressed to. Otherwise the copy shown here (the first) need not be the copy a node executes.
+function checkNodeCopiesAgree(txs) {
+	if (txs.length < 2) return
+	let ref = null
+	txs.forEach((tx, i) => {
+		const st = first(scanFields(tx), 5)
+		const body = st instanceof Uint8Array ? first(scanFields(st), 1) : undefined
+		if (!(body instanceof Uint8Array)) throw new AmbiguousTransaction(`node copy ${i + 1} of ${txs.length} has no body`)
+		const k = bodyWithoutNode(body)
+		if (ref === null) ref = k
+		else if (k !== ref) throw new AmbiguousTransaction(`node copy ${i + 1} of ${txs.length} is a different transaction from copy 1`)
+	})
+}
+
 // Unwrap the outer envelope to get { bodyBytes, sigMapBytes }.
 // Accepts either a TransactionList(#1 → Transaction) or a bare Transaction, and
 // either modern (Transaction #5 = signedTransactionBytes) or a raw
@@ -255,10 +333,13 @@ function unwrap(buf) {
 
 	// TransactionList: field 1 is a Transaction. Heuristic: field 1 LEN present
 	// AND it itself contains a field 5 (signedTransactionBytes). Take first tx.
-	const f1 = first(f, 1)
+	// A list legitimately repeats field 1 (one copy per node), so this read is firstOfList;
+	// every other copy must say the same apart from its node (WIDGET-STRICT1).
+	const f1 = firstOfList(f, 1)
 	if (f1 instanceof Uint8Array) {
 		const inner = (() => { try { return scanFields(f1) } catch { return null } })()
 		if (inner && inner.has(5)) {
+			checkNodeCopiesAgree(all(f, 1))
 			f = inner   // descend into the Transaction
 		}
 	}

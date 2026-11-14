@@ -175,6 +175,14 @@ const SIGN_REASON = {
 		el.className = 'txread-bytes-verify'
 		el.dataset.status = bytesVerify.status
 
+		if (bytesVerify.status === 'mismatch' && bytesVerify.ambiguous) {
+			// WIDGET-STRICT1: the bytes say something twice, so the network may not see what is shown
+			el.innerHTML =
+				`<strong>⚠️ WARNING — this transaction is written so that it can be read two ways.</strong>` +
+				`<br>What is shown here may not be what the network carries out. Do not sign. ` +
+				`<span class="subtle">details in diagnostics (tx:bytes-verify).</span>`
+			return el
+		}
 		if (bytesVerify.status === 'mismatch') {
 			el.innerHTML =
 				`<strong>⚠️ WARNING — the transfers shown do NOT match the transaction bytes being signed.</strong>` +

@@ -273,6 +273,15 @@ function verifyTransfersAgainstBytes(data, transfers) {
 	let decoded
 	try { decoded = decodeTransaction(hex2) }
 	catch (e) {
+		// WIDGET-STRICT1: bytes that another reader (the network) could read differently are not a
+		// quiet "couldn't compare" — they are the attack the check exists for. Report them as a
+		// mismatch, so the loud, always-visible "Do not sign" note shows, with the reason.
+		if (e?.code === 'KSIG_AMBIGUOUS') {
+			console.error('BV10003 TRANSACTION BYTES ARE AMBIGUOUS', e)
+			const result = { status: 'mismatch', ambiguous: true, reason: String(e.message || e), missingFromDisplay: [], extraInDisplay: [], counts: { bytes: 0, displayed: 0 } }
+			kdiag('tx:bytes-verify', { txid: data?.txid, ...result })
+			return result
+		}
 		console.error('BV10001 tx bytes decode failed', e)
 		kdiag('tx:bytes-verify', { status: 'error', error: String(e), txid: data?.txid })
 		return { status: 'error', reason: 'decode failed: ' + String(e) }
