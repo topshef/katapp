@@ -17,7 +17,7 @@ import {
     } from './kea-verify.js'
 
     import { fetchAndVerifyDeal, getCachedDeal } from './kea-deal.js'
-    import { isDealRecord, decideRecord, ledgerAppend } from './kea-core.js'   // KEA-WEB1: the same core node runs
+    import { isDealRecord, decideRecord, ledgerAppend, bindSignedBytes } from './kea-core.js'   // KEA-WEB1: the same core node runs; KEA-BYTES2: the bytes gate
 
     import {
       loadKeys,
@@ -544,6 +544,7 @@ import {
         try { v = await decideRecord({ ...out, txid: e.txid, pch: e.pch }, e.network || w.network) }
         catch (err) { v = { ok: false, reason: 'core error: ' + err.message, checks: [] } }
         e.core = v
+        e.signBytes = v.ok ? v.bodyBytesHex || null : null   // KEA-BYTES2: the body the core judged, bound in decideRecord
         e.check = v.ok ? 'pass' : 'fail'
         e.summary = v.ok ? `KEA core: ${v.reason} — sign as ${v.signers.join(' + ')}` : `KEA core refused: ${v.reason}`
         e.verification = { ok: v.ok, msg: e.summary, checks: (v.checks || []).map(function(c) { return { name: c.id, ok: c.status === 'pass', msg: c.detail, status: c.status } }) }
@@ -566,6 +567,20 @@ import {
       // if orderPubkey is present, deal-template if dealId is present, both if
       // both. An expired rule fails closed, so nothing auto-signs.
       const result = await evaluateRuleForWatch(out.kea, w)
+      // KEA-BYTES2: the rule judged the server's JSON (pchBasis). Signing needs the bytes to move
+      // exactly what was judged; without that the check says nothing about what gets signed.
+      e.signBytes = null
+      if (result.ok && (out.hex2 || out.bodyBytesHex)) {
+        try {
+          const bound = bindSignedBytes(out, e.txid, out.kea?.execution?.pchBasis?.transfers || { hbarTransfers: [], tokenTransfers: [], nftTransfers: [] })
+          e.signBytes = bound.bodyBytesHex
+          result.checks = [...(result.checks || []), { id: 'bytes', ok: true, msg: bound.detail }]
+        } catch (err) {
+          result.ok = false
+          result.msg = 'the signed bytes are not the checked transaction: ' + err.message
+          result.checks = [...(result.checks || []), { id: 'bytes', ok: false, msg: err.message }]
+        }
+      }
       e.check = result.ok ? 'pass' : 'fail'
       e.summary = result.msg
       e.verification = result
@@ -601,6 +616,9 @@ import {
     async function approveEvent(e, opts = {}) {
       if (e.check !== 'pass') throw new Error('Cannot approve — checks have not passed')
       if (!e.kea && !e.raw?.bodyBytesHex) throw new Error('No approval package to sign')   // KEA-WEB1: a core-judged record signs its body bytes
+      // KEA-BYTES2: a record with real transaction bytes is signed ONLY over the body the checks
+      // bound (e.signBytes); never over e.raw.bodyBytesHex as fetched
+      if ((e.raw?.bodyBytesHex || e.raw?.hex2) && !e.signBytes) throw new Error('Refused — the bytes to sign were not bound to what was checked')
 
       const w = getWatch(e.watchId)
       if (!w) throw new Error('Watch no longer exists')
@@ -638,7 +656,7 @@ import {
 
       setStatus(`Signing ${shortHash(e.pch)}…`)
 
-      const sign = await signApprovalPackage(e.kea, key, e.raw?.bodyBytesHex || null)   // KEA-WEB1: body bytes when the record has them
+      const sign = await signApprovalPackage(e.kea, key, e.signBytes || null)   // KEA-BYTES2: the bound body (null only for the legacy demo package with no bytes)
       markKeyUsed(key.id)
       const payload = buildSignedPayload(e, sign)
       const submit = await submitSignedResult(w.baseUrl, payload)
