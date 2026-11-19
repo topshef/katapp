@@ -123,6 +123,78 @@ const admin = (sent) => backendVerifies(sent) ? { status: 200, body: { ok: true,
   ok(!/a message nobody signed/.test(r.view.out), 'shows no messages')
 }
 
+// ── 5. FEEDBACK-PAGE-SORT1 (owner 2026-11-19): narrow by site/page/product/sender; tap a heading to
+//    sort, again to reverse; each sort keeps the previous order within ties ──────────────────────
+{
+  console.log('5. filters by site, page, product and sender; tap-to-sort that keeps the previous order')
+  const R = (id, ts, url, extra = {}) => ({ id, ts, url, product: 'gomint-expo', message: 'msg ' + id, bucket: 'anonymous customer', groups: [], tag: 'tag-' + id, ...extra })
+  const MANY = [   // newest first, as the backend serves them
+    R('n6', '2026-11-19T16:00:00Z', 'https://3d.expo2026.gomint.me/playground/'),
+    R('n5', '2026-11-19T15:00:00Z', 'https://expo2026.gomint.me/gallery/hashglass/'),
+    R('n4', '2026-11-19T14:00:00Z', 'https://3d.expo2026.gomint.me/gallery/'),
+    R('n3', '2026-11-19T13:00:00Z', 'https://3d.expo2026.gomint.me/playground/', { product: 'gomint', account: '0.0.1234567', bucket: 'general customer' }),
+    R('n2', '2026-11-19T12:00:00Z', 'https://lab1.katomia.com/board/t-fx', { product: 'katomia', message: 'the board is slow' }),
+    R('n1', '2026-11-19T11:00:00Z', 'https://3d.expo2026.gomint.me/gallery/'),
+  ]
+  for (const width of [1280, 390]) {
+    const ctx = await browser.newContext({ viewport: { width, height: 900 } })
+    const page = await ctx.newPage()
+    await page.route('**/hapi/kfeedback/admin/list', (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, viewer: '0.0.9940704', rows: MANY }) }))
+    await page.goto(BASE + '/m/katomia/qa/index.html', { waitUntil: 'domcontentloaded' })
+    await page.evaluate(currentKey)
+    await page.goto(BASE + '/m/katomia/qa/feedback.html', { waitUntil: 'domcontentloaded' })
+    await page.waitForSelector('.card.row')
+    const ids = () => page.$$eval('.card.row', (a) => a.map((c) => c.getAttribute('data-id')))
+    const opts = (sel) => page.$$eval(sel + ' option', (a) => a.map((o) => o.value + '=' + o.textContent))
+    const w = '@' + width + ': '
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n6', 'n5', 'n4', 'n3', 'n2', 'n1']), w + 'newest first to start', await ids())
+    const sites = await opts('#f-site')
+    ok(sites.includes('3d.expo2026.gomint.me=3d.expo2026.gomint.me (4)') && sites.includes('expo2026.gomint.me=expo2026.gomint.me (1)') && sites.includes('lab1.katomia.com=lab1.katomia.com (1)'), w + 'the Site list names each site with its count', sites.join(' | '))
+    await page.selectOption('#f-site', '3d.expo2026.gomint.me')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n6', 'n4', 'n3', 'n1']), w + 'choosing a site shows only its messages', await ids())
+    const pages = await opts('#f-page')
+    ok(pages.length === 3 && pages.includes('/gallery/=/gallery/ (2)') && pages.includes('/playground/=/playground/ (2)'), w + 'the Page list narrows to that site', pages.join(' | '))
+    await page.selectOption('#f-page', '/gallery/')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n4', 'n1']), w + 'and a page within it', await ids())
+    await page.click('#f-clear')
+    await page.selectOption('#f-from', 'account')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n3']), w + 'From: signed in, not admin', await ids())
+    await page.selectOption('#f-from', '')
+    await page.selectOption('#f-product', 'katomia')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n2']), w + 'Product', await ids())
+    await page.click('#f-clear')
+    await page.fill('#f-text', 'slow')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n2']), w + 'Find searches the words', await ids())
+    await page.fill('#f-text', 'tag-n5')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n5']), w + '… and the reference', await ids())
+    await page.click('#f-clear')
+    // the owner's example: When reversed, then Page — time order within each page
+    await page.click('.thead button[data-col="when"]')          // first tap on When: newest first (its natural direction)
+    await page.click('.thead button[data-col="when"]')          // second tap reverses: oldest first
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n1', 'n2', 'n3', 'n4', 'n5', 'n6']), w + 'When, tapped twice: oldest first', await ids())
+    await page.click('.thead button[data-col="when"]')          // back to newest first
+    await page.click('.thead button[data-col="page"]')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n2', 'n4', 'n1', 'n5', 'n6', 'n3']), w + 'then Page: pages A→Z (/board, /gallery/, /gallery/hashglass/, /playground/), newest first within each page', await ids())
+    ok(await page.$eval('.thead button[data-col="page"]', (b) => b.getAttribute('aria-sort')) === 'ascending', w + 'the heading shows its direction')
+    await page.click('.thead button[data-col="page"]')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n6', 'n3', 'n5', 'n4', 'n1', 'n2']), w + 'Page again reverses, still newest first within each page', await ids())
+    await page.selectOption('#f-site', '3d.expo2026.gomint.me')
+    ok(JSON.stringify(await ids()) === JSON.stringify(['n6', 'n3', 'n4', 'n1']), w + 'a filter keeps the sort', await ids())
+    await page.selectOption('#f-site', '')
+    if (width === 1280) {
+      const lined = await page.evaluate(() => {
+        const hs = [...document.querySelectorAll('.thead button')].map((b) => Math.round(b.getBoundingClientRect().left))
+        const row = document.querySelector('.card.row')
+        const cs = [...row.querySelectorAll('.head > .c'), row.querySelector('.msgcell')].map((c) => Math.round(c.getBoundingClientRect().left))
+        return { hs, cs }
+      })
+      ok(JSON.stringify(lined.hs) === JSON.stringify(lined.cs), w + 'the headings sit over their columns (a table on desktop)', JSON.stringify(lined))
+    }
+    if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/feedback-' + width + '.png', fullPage: false })
+    await ctx.close()
+  }
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed`)
 process.exit(failed ? 1 : 0)

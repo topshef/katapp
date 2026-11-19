@@ -40,6 +40,34 @@
   .note{background:#fff;border:1px solid #e5e7eb;border-left:4px solid #2f6fed;border-radius:10px;padding:11px 13px;margin:14px 0;font-size:13px}
   .err{color:#b91c1c}
   code{font:12.5px ui-monospace,Menlo,Consolas,monospace;background:#f3f4f6;padding:1px 5px;border-radius:5px}
+  /* FEEDBACK-PAGE-SORT1 (owner 2026-11-19): narrow by site, page, product and sender; tap a heading
+     to sort, again to reverse; each sort keeps the previous order within ties. */
+  main{max-width:1180px}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:0 0 12px}
+  .filters label{display:flex;flex-direction:column;gap:2px;font-size:11px;color:#6b7482;text-transform:uppercase;letter-spacing:.04em}
+  .filters select,.filters input{font:14px system-ui,sans-serif;border:1px solid #dde3ec;border-radius:8px;padding:6px 8px;background:#fff;color:#1f2937;max-width:260px}
+  .filters input{width:200px}
+  .filters .clear{align-self:flex-end;border:1px solid #dde3ec;background:#fff;border-radius:8px;padding:6px 10px;font:600 12.5px system-ui,sans-serif;color:#374151;cursor:pointer}
+  .thead{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 8px}
+  .thead button{all:unset;cursor:pointer;font:600 11.5px system-ui,sans-serif;letter-spacing:.04em;text-transform:uppercase;color:#4b5563;
+    border:1px solid #dde3ec;background:#fff;border-radius:999px;padding:5px 10px;display:inline-flex;gap:4px;align-items:center}
+  .thead button[aria-sort=ascending],.thead button[aria-sort=descending]{border-color:#2f6fed;color:#1e40af;background:#eaf1fe}
+  .thead button[aria-sort=ascending] .arr::after{content:"▲"} .thead button[aria-sort=descending] .arr::after{content:"▼"}
+  .thead button:focus-visible{outline:2px solid #2f6fed;outline-offset:2px}
+  .msgtop{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;font-size:12px;color:#6b7482}
+  .cell-k{font-size:11px;color:#9aa1ad;text-transform:uppercase;letter-spacing:.04em;margin-right:4px}
+  .site{font-weight:600;color:#374151;overflow-wrap:anywhere} .path{color:#6b7482;overflow-wrap:anywhere}
+  @media (min-width:900px){
+    /* desktop: a table — the headings sit over their columns */
+    .thead{display:grid;grid-template-columns:var(--cols);gap:0 12px;margin:0;padding:0 12px 6px 16px;border-bottom:2px solid #e5e7eb}   /* 16 = the rows' 12 padding + 4 coloured edge */
+    .thead button{border:0;background:none;padding:4px 0;border-radius:0}
+    .thead button[aria-sort=ascending],.thead button[aria-sort=descending]{background:none;color:#1e40af}
+    .card.row{display:grid;grid-template-columns:var(--cols);gap:0 12px;border-radius:0;margin:0;border-width:0 0 1px;border-left-width:4px}
+    .card.row .cell-k{display:none}
+    .card.row .head{display:contents}
+    .card.row .msgcell{min-width:0}
+  }
+  #out{--cols:8.5em 10.5em 11em 8.5em 9em minmax(0,1fr)}
 </style>
 </head>
 <body>
@@ -65,6 +93,14 @@ votes sit under their own filter and never need endorsing.</p>
   <button data-filter="archived">Archived</button>
   <button data-filter="all">All</button>
   <span class="who" id="who"></span>
+</div>
+<div class="filters" id="filters">
+  <label>Site <select id="f-site"><option value="">All sites</option></select></label>
+  <label>Page <select id="f-page"><option value="">All pages</option></select></label>
+  <label>Product <select id="f-product"><option value="">All products</option></select></label>
+  <label>From <select id="f-from"><option value="">Anyone</option></select></label>
+  <label>Find <input id="f-text" type="search" placeholder="words, a reference…" autocomplete="off"></label>
+  <button type="button" class="clear" id="f-clear">Clear</button>
 </div>
 
 <div id="out"><p class="lead">Reading…</p></div>
@@ -163,21 +199,57 @@ votes sit under their own filter and never need endorsing.</p>
     return el("span", "chip chip-anon", "anonymous");
   }
 
+  // ── where a message came from, and who sent it (FEEDBACK-PAGE-SORT1) ─────────────────────
+  // Site = the host of the page it was sent from (the widget reports the page url; for GoMint
+  // the relay stamps it), else the browser-set Origin, else nothing. Page = that url's path.
+  function urlOf(r) { try { return r.url ? new URL(r.url) : null; } catch (e) { return null; } }
+  function siteOf(r) {
+    var u = urlOf(r); if (u) return u.host;
+    try { if (r.origin) return new URL(r.origin).host; } catch (e) {}
+    return "(no page)";
+  }
+  function pageOf(r) { var u = urlOf(r); return u ? (u.pathname || "/") : ""; }
+  function fromOf(r) {
+    if (r.groups && r.groups.indexOf("admin") !== -1) return "admin";
+    if (r.account) return "account";
+    if (r.signatureValid) return "key";
+    return "anonymous";
+  }
+  var FROM_LABEL = { admin: "Admin account", account: "Signed in, not admin", key: "Signed, key not bound", anonymous: "Anonymous" };
+  function fromText(r) { var f = fromOf(r); return f === "admin" || f === "account" ? r.account : FROM_LABEL[f]; }
+  function statusText(r) {
+    if (r.archived && r.archived.by) return "archived";
+    if (r.status === "triaged") return "handled" + (r.triage && r.triage.action ? " · " + r.triage.action : "");
+    if (r.endorsed && r.endorsed.by) return "endorsed";
+    return r.bucket === "actioning" ? "actionable" : "waiting";
+  }
+  function isVoteRow(r) { return r.kind === "vote" || /^[\u{1F44D}\u{1F44E}]/u.test(String(r.message || "").trim()); }
+
   function card(r) {
-    var isVote = r.kind === "vote" || /^[\u{1F44D}\u{1F44E}]/u.test(String(r.message || "").trim());
+    var isVote = isVoteRow(r);
     var isArch = !!(r.archived && r.archived.by);
-    var c = el("div", "card " + (r.bucket === "actioning" ? "actionable" : "look") + (isArch ? " archived" : ""));
+    var c = el("div", "card row " + (r.bucket === "actioning" ? "actionable" : "look") + (isArch ? " archived" : ""));
+    c.setAttribute("data-id", r.id);
     var head = el("div", "head");
-    if (r.tag) head.appendChild(el("span", "tagref", r.tag));
-    head.appendChild(chipFor(r));
-    if (isVote) head.appendChild(el("span", "chip chip-vote", "vote"));
-    if (isArch) head.appendChild(el("span", "chip chip-archived", "archived by " + r.archived.by));
-    head.appendChild(el("span", null, new Date(r.ts).toLocaleString("en-GB")));
-    head.appendChild(el("span", null, r.account ? r.account : (r.signatureValid ? "signed, unbound key" : "no signature")));
-    if (r.status && r.status !== "new") head.appendChild(el("span", null, "· " + r.status));
+    var cell = function (cls, k, node) { var d = el("div", "c " + cls); d.appendChild(el("span", "cell-k", k)); d.appendChild(node); head.appendChild(d); return d; };
+    cell("when", "When", el("span", null, new Date(r.ts).toLocaleString("en-GB", { day: "2-digit", month: "short", year: "2-digit", hour: "2-digit", minute: "2-digit" })));
+    cell("site", "Site", el("span", "site", siteOf(r)));
+    cell("page", "Page", el("span", "path", pageOf(r) || "—"));
+    cell("from", "From", el("span", null, fromText(r)));
+    var st = el("span"); st.appendChild(chipFor(r));
+    if (isVote) st.appendChild(el("span", "chip chip-vote", "vote"));
+    if (isArch) st.appendChild(el("span", "chip chip-archived", "archived by " + r.archived.by));
+    if (r.status && r.status !== "new") st.appendChild(el("span", null, " · " + r.status));
+    cell("status", "Status", st);
     c.appendChild(head);
 
-    c.appendChild(el("div", "msg", r.message));   // textContent — never parsed as markup
+    var mc = el("div", "msgcell");
+    var top = el("div", "msgtop");
+    if (r.tag) top.appendChild(el("span", "tagref", r.tag));
+    if (r.product) top.appendChild(el("span", null, r.product));
+    mc.appendChild(top);
+    mc.appendChild(el("div", "msg", r.message));   // textContent — never parsed as markup
+    c.appendChild(mc);
 
     var foot = el("div", "foot");
     if (r.target) foot.appendChild(el("span", null, "on " + r.target));
@@ -225,20 +297,102 @@ votes sit under their own filter and never need endorsing.</p>
     }
     foot.appendChild(markButton(isArch ? "Unarchive" : "Archive", "/kfeedback/admin/archive",
                                 isArch ? "kfeedback.unarchive" : "kfeedback.archive", "off"));
-    c.appendChild(foot);
+    mc.appendChild(foot);
     return c;
   }
 
+  // ── sorting: each tap sorts the list as it stands, so ties keep the previous order ─────
+  // (the same rule as the GoMint account cards, owner feedback papa-yankee-80, 2026-11-16):
+  // tap When, then Page, and you get time order within each page. Tap a heading again to
+  // reverse it. The order is kept across filters and across Endorse/Archive.
+  var COLS = [
+    { k: "when",   label: "When",    first: -1, key: function (r) { return r.ts || ""; } },
+    { k: "site",   label: "Site",    first: 1,  key: function (r) { return siteOf(r).toLowerCase(); } },
+    { k: "page",   label: "Page",    first: 1,  key: function (r) { return pageOf(r).toLowerCase(); } },
+    { k: "from",   label: "From",    first: 1,  key: function (r) { var f = fromOf(r); return ({ admin: 0, account: 1, key: 2, anonymous: 3 })[f] + ":" + String(r.account || "").replace(/\d+/g, function (d) { return ("000000000000" + d).slice(-12); }); } },
+    { k: "status", label: "Status",  first: 1,  key: function (r) { return statusText(r); } },
+    { k: "msg",    label: "Message", first: 1,  key: function (r) { return String(r.message || "").trim().toLowerCase(); } }
+  ];
+  var order = null, sortCol = null, sortDir = 1;
+  function sortBy(i) {
+    var col = COLS[i];
+    sortDir = sortCol === i ? -sortDir : col.first; sortCol = i;
+    var pos = {}; order.forEach(function (id, n) { pos[id] = n; });
+    var byId = {}; rows.forEach(function (r) { byId[r.id] = r; });
+    order.sort(function (a, b) {
+      var x = col.key(byId[a]), y = col.key(byId[b]);
+      if (x < y) return -sortDir; if (x > y) return sortDir;
+      return pos[a] - pos[b];
+    });
+    render();
+  }
+  function headings() {
+    var h = el("div", "thead");
+    COLS.forEach(function (c, i) {
+      var b = el("button", null, c.label);
+      b.type = "button";
+      b.setAttribute("data-col", c.k);
+      b.setAttribute("aria-sort", sortCol === i ? (sortDir > 0 ? "ascending" : "descending") : "none");
+      b.appendChild(el("span", "arr"));
+      b.onclick = function () { sortBy(i); };
+      h.appendChild(b);
+    });
+    return h;
+  }
+
+  // ── filters ───────────────────────────────────────────────────────────────────────────
+  var fSite = document.getElementById("f-site"), fPage = document.getElementById("f-page"),
+      fProduct = document.getElementById("f-product"), fFrom = document.getElementById("f-from"),
+      fText = document.getElementById("f-text");
+  function fill(sel, entries, allLabel) {
+    var keep = sel.value;
+    sel.textContent = "";
+    var total = entries.reduce(function (n, e) { return n + e[1]; }, 0);
+    var o = el("option", null, allLabel + " (" + total + ")"); o.value = ""; sel.appendChild(o);
+    entries.forEach(function (e) { var op = el("option", null, e[2] + " (" + e[1] + ")"); op.value = e[0]; sel.appendChild(op); });
+    sel.value = entries.some(function (e) { return e[0] === keep; }) ? keep : "";
+  }
+  function tally(list, fn, label) {
+    var m = {};
+    list.forEach(function (r) { var k = fn(r); m[k] = (m[k] || 0) + 1; });
+    return Object.keys(m).sort().map(function (k) { return [k, m[k], label ? label(k) : (k || "(none)")]; });
+  }
+  // each dropdown counts what the OTHER filters leave, so a number always says what you would get
+  function passes(r, skip) {
+    if (skip !== "site" && fSite.value && siteOf(r) !== fSite.value) return false;
+    if (skip !== "page" && fPage.value && pageOf(r) !== fPage.value) return false;
+    if (skip !== "product" && fProduct.value && (r.product || "") !== fProduct.value) return false;
+    if (skip !== "from" && fFrom.value && fromOf(r) !== fFrom.value) return false;
+    if (skip !== "text") {
+      var q = fText.value.trim().toLowerCase();
+      if (q && (String(r.message || "") + " " + (r.tag || "") + " " + (r.url || "")).toLowerCase().indexOf(q) === -1) return false;
+    }
+    return true;
+  }
+  [fSite, fPage, fProduct, fFrom].forEach(function (s) { s.onchange = render; });
+  fText.oninput = render;
+  document.getElementById("f-clear").onclick = function () { fSite.value = fPage.value = fProduct.value = fFrom.value = ""; fText.value = ""; render(); };
+
   function render() {
-    var isVoteR = function (r) { return r.kind === "vote" || /^[\u{1F44D}\u{1F44E}]/u.test(String(r.message || "").trim()); };
+    var isVoteR = isVoteRow;
     var isArchR = function (r) { return !!(r.archived && r.archived.by); };
-    var show = rows.filter(function (r) {
+    if (!order || order.length !== rows.length) order = rows.map(function (r) { return r.id; });   // newest first, as served
+    var byId = {}; rows.forEach(function (r) { byId[r.id] = r; });
+    var inView = function (r) {             // the bucket buttons: Needs a look / Actionable / Votes / Archived / All
       if (filter === "all") return true;
       if (filter === "archived") return isArchR(r);
       if (filter === "votes") return isVoteR(r) && !isArchR(r);
-      if (isArchR(r) || isVoteR(r)) return false;          // the working views are comments only
+      if (isArchR(r) || isVoteR(r)) return false;
       if (filter === "actioning") return r.bucket === "actioning";
-      return r.bucket !== "actioning";                      // "needs a look"
+      return r.bucket !== "actioning";
+    };
+    var base = rows.filter(inView);
+    fill(fSite, tally(base.filter(function (r) { return passes(r, "site"); }), siteOf), "All sites");
+    fill(fPage, tally(base.filter(function (r) { return passes(r, "page"); }), pageOf, function (k) { return k || "(no page)"; }), "All pages");
+    fill(fProduct, tally(base.filter(function (r) { return passes(r, "product"); }), function (r) { return r.product || ""; }), "All products");
+    fill(fFrom, tally(base.filter(function (r) { return passes(r, "from"); }), fromOf, function (k) { return FROM_LABEL[k]; }), "Anyone");
+    var show = order.map(function (id) { return byId[id]; }).filter(function (r) {
+      return !!r && passes(r) && inView(r);   // the working views (look, actioning) are comments only
     });
     out.textContent = "";
     var counts = { a: 0, l: 0, v: 0, z: 0 };
@@ -248,7 +402,8 @@ votes sit under their own filter and never need endorsing.</p>
     });
     out.appendChild(el("p", "lead", rows.length + " in the inbox · " + counts.l + " waiting on you · " +
       counts.a + " actionable · " + counts.v + " votes · " + counts.z + " archived · showing " + show.length));
-    if (!show.length) out.appendChild(el("p", "lead", "Nothing here."));
+    if (!show.length) { out.appendChild(el("p", "lead", "Nothing here.")); return; }
+    out.appendChild(headings());
     show.forEach(function (r) { out.appendChild(card(r)); });
   }
 
