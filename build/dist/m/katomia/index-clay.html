@@ -4,13 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- ENTRY-FADES1: must be in <head> — it arms the fade-IN before first paint. -->
-<script src="kfade.js?v=1794675461"></script>
-<link rel="stylesheet" href="katomia.css?v=1794675461">
+<script src="kfade.js?v=1795096021"></script>
+<link rel="stylesheet" href="katomia.css?v=1795096021">
 <!-- DARK-PAGES1 (owner 2026-11-10): this page has its own dark mode — katomia-dark.css here, and the
      generated block after this page's own style block (build/dark-css.mjs). Declaring it stops Chrome repainting the page. -->
 <meta name="color-scheme" content="light dark">
-<link rel="stylesheet" href="katomia-dark.css?v=1794675461">
-<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1794675461"><title>Katomia</title>
+<link rel="stylesheet" href="katomia-dark.css?v=1795096021">
+<link rel="icon" type="image/svg+xml" href="/assets/katomia-ring.svg?v=1795096021"><title>Katomia</title>
 <style>
   /* KATOMIA-LANDING1: intentionally tiny — a hand-picked jumping-off point,
      not a second games list (that's contents.php's job, reachable from here
@@ -1020,9 +1020,9 @@ window.katomiaNet = (() => {
      kfeedbits.js gives each note its 👍 👎 💬 — the same control learn.php uses; the
      script is idempotent (scans [data-kfb] once, exposes window.kfeedbits.render for
      the notes' popovers), so a page that already loads it is unaffected. -->
-<script src="kfeedbits.js?v=1794675461" defer></script>
-<script src="kchanges-log.js?v=1794675461" defer></script>
-<script src="kchanges.js?v=1794675461" defer></script>
+<script src="kfeedbits.js?v=1795096021" defer></script>
+<script src="kchanges-log.js?v=1795096021" defer></script>
+<script src="kchanges.js?v=1795096021" defer></script>
 <!-- /KBUNDLE-STRIP:kchanges -->
 <div id="profileModal" class="profile-modal hidden">
 
@@ -1488,8 +1488,8 @@ window.KTERMS = {"one":"circle","One":"Circle","many":"circles","Many":"Circles"
      one into the inflate-into-a-window transition. Loaded on EVERY skin now, because
      the bubble marks "this is a door into a {one}" rather than decorating the page.
      Degrades silently: no canvas / reduced motion → plain cards, plain navigation. -->
-<script src="kbubble.js?v=1794675461"></script>
-<script src="kbubbleopen.js?v=1794675461"></script>
+<script src="kbubble.js?v=1795096021"></script>
+<script src="kbubbleopen.js?v=1795096021"></script>
 <script>
 // ENTRY-BUBBLE1 — user tuning, revision 2 (2026-07-29, exported verbatim from
 // kdemo/bubble.html): near-whole-element response (spread .75), fast wave with light
@@ -1587,9 +1587,9 @@ window.addEventListener("load", () => {
 </script>
 
 <script src="/vendor/kpay/kpool_widget/qrcode.min.js"></script>
-<script src="katomia-core.js?v=1794675461"></script>
-<script src="katomia-helpers.js?v=1794675461"></script>
-<script src="katomia-places.js?v=1794675461"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
+<script src="katomia-core.js?v=1795096021"></script>
+<script src="katomia-helpers.js?v=1795096021"></script>
+<script src="katomia-places.js?v=1795096021"></script>   <!-- RECENT-VISITS1 + AUDIENCE-WWP1 -->
 <script>
 // ── RECENT-VISITS1 + LIVE-NOW1 (owner 2026-10-09) ───────────────────────────────────────
 // "Recently visited": this browser's history, newest first, side circles included — the
@@ -1673,9 +1673,9 @@ window.addEventListener("load", () => {
     .then(r => r.json()).then(d => { games = d?.games || {}; render() }).catch(() => {})
 })()
 </script>
-<script src="kemoji.js?v=1794675461"></script>
-<script src="katomia-profile.js?v=1794675461"></script>
-<script src="katomia-auth.js?v=1794675461"></script>
+<script src="kemoji.js?v=1795096021"></script>
+<script src="katomia-profile.js?v=1795096021"></script>
+<script src="katomia-auth.js?v=1795096021"></script>
 <script type="text/javascript" data-mode="headless" src="/vendor/walletconnect/snapshots/925d5d2/kwc.iife.js" data-config="/vendor/walletconnect/config.json"></script>
 <!-- WC-ANDROIDLINK3 (2026-11-07): on Android, sends each request's "bring the wallet forward" link
      to HashPack's own app link; see the header of /assets/js/kwc-deeplink.js. Baseline (revert target): katapp 7b041f7. -->

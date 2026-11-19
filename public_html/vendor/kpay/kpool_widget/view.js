@@ -2797,6 +2797,12 @@ export function injectTxReadCSS() {
 		.txpreview-before:hover, .txpreview-after:hover { filter: none; }
 		@media (hover: hover) and (pointer: fine) {
 			.txpreview-half:hover:not(.txpreview-half--tapped) { box-shadow: inset 0 0 0 2px rgba(0,0,0,.14); }
+			/* HOVERSELECT1 (owner feedback 1bd4c172, 2026-09-06, swept 2026-11-19): "on hover … the
+			   striping or the background should be the same as if it were then selected". The half
+			   NOT picked rests at opacity .45 (below); hover now lifts it to full strength, so hover
+			   previews exactly what a click gives. Pointer devices only, like the ring: a tap must
+			   not latch it (HOVERSTICK1). qa/sign section 14. */
+			.txcards-preview[data-state] .txpreview-half:hover { opacity: 1; }
 		}
 		/* PREVIEWCORNERS1 (feedback 9b704fde, 2026-09-05): "the highlight border's corners
 		   are getting slightly cropped — it should follow whatever the border shape already

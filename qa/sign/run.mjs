@@ -417,6 +417,47 @@ console.log('13. every tooltip leads with ℹ️ (KPOOL-TIPLEAD1)')
   await page.close()
 }
 
+console.log('14. hovering the Before/After half you have NOT picked shows what picking it looks like (HOVERSELECT1)')
+{
+  // Owner feedback 1bd4c172 (2026-09-06, admin-endorsed; swept 2026-11-19): "on hover before or
+  // after, as well as highlighting the border, the striping or the background should be the same
+  // as if it were then selected … currently only the border is highlighted". The half you have
+  // not picked sits at opacity .45; hover left it there, so only the ring changed. Measured off
+  // the cascade (getComputedStyle), with a real mouse, on a device that hovers.
+  const page = await open(fixture({ precheck: verdict([]) }))
+  const look = () => page.evaluate(() => {
+    const p = document.querySelector('.txcards-preview'); if (!p) return null
+    const half = s => { const el = p.querySelector('.txpreview-' + s), cs = getComputedStyle(el); return { opacity: cs.opacity, bg: cs.backgroundImage + ' ' + cs.backgroundColor } }
+    return { state: p.dataset.state, before: half('before'), after: half('after') }
+  })
+  const at0 = await look()
+  ok(!!at0, 'the sign page shows the Before/After card')
+  if (at0) {
+    const other = at0.state === 'after' ? 'before' : 'after', mine = at0.state
+    ok(parseFloat(at0[other].opacity) < 1, `at rest the half not picked (${other}) is faded`, at0[other].opacity)
+    const box = await (await page.$('.txpreview-' + other)).boundingBox()
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2)
+    await page.waitForTimeout(400) // past any transition
+    const hov = await look()
+    ok(hov.state === mine, 'hovering does not pick it', hov.state)
+    ok(hov[other].opacity === '1', `hovering the ${other} half shows it at full strength, as when picked`, hov[other].opacity)
+    // the picked look, for comparison: click it, move away, read it at rest
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2)
+    await page.mouse.move(2, 2)
+    await page.waitForTimeout(400)
+    const picked = await look()
+    ok(picked.state === other, `a click picks ${other}`, picked.state)
+    ok(hov[other].opacity === picked[other].opacity && hov[other].bg === picked[other].bg, 'hover and picked look the same (strength and stripes)', JSON.stringify({ hover: hov[other], picked: picked[other] }))
+    ok(parseFloat(picked[mine].opacity) < 1, `… and the other half (${mine}) fades as before`, picked[mine].opacity)
+  }
+  await page.close()
+  // a touch screen has no hover: nothing changes there (HOVERSTICK1 keeps a tap from latching)
+  const ctx = await browser.newContext({ viewport: { width: 376, height: 900 }, hasTouch: true, isMobile: true })
+  const tp = await ctx.newPage()
+  ok(await tp.evaluate(() => !matchMedia('(hover: hover) and (pointer: fine)').matches), 'a phone context does not match (hover: hover)')
+  await ctx.close()
+}
+
 await browser.close(); server.close()
 console.log(`\n${total - failed}/${total} passed` + (failed ? ` — ${failed} FAILED` : ' — every "not enough" reaches the card'))
 process.exit(failed ? 1 : 0)
