@@ -6,6 +6,7 @@
 <meta name="robots" content="noindex,nofollow">
 <title>Katomia · Feedback (admin)</title>
 <style>
+  html,*,*::before,*::after{-webkit-tap-highlight-color:transparent}
   body{font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#1f2937;background:#f7f7f8;margin:0;padding:18px 14px 60px}
   main{max-width:900px;margin:0 auto}
   h1{font-size:21px;margin:0 0 4px}
@@ -99,11 +100,40 @@ votes sit under their own filter and never need endorsing.</p>
     return e;
   }
 
+  // FEEDBACK-PAGE-KEY1 (owner 2026-11-19, asking for a wallet-gated way to read the inbox):
+  // since INTENTKEY-SAFE1 (2026-11-06) the private half is a non-extractable CryptoKey in
+  // IndexedDB (katomia-core.js: db "katomia-keys", store "keys", id "intent") and localStorage
+  // keeps the PUBLIC half only. This page still read the old localStorage JWK, so from that day
+  // every visit said "no Katomia key". It now signs with the stored CryptoKey (it can sign, it
+  // cannot be read out), and keeps the JWK path for a browser not yet moved over. Bounded like
+  // core (INTENTKEY-TIMEOUT1): a store that never answers reads as "no key", never a hang.
+  function storedIntentKey() {
+    return new Promise(function (resolve) {
+      if (!window.indexedDB) return resolve(null);
+      var done = false, finish = function (v) { if (!done) { done = true; resolve(v); } };
+      setTimeout(function () { finish(null); }, 2000);
+      var req;
+      try { req = indexedDB.open("katomia-keys", 1); } catch (e) { return finish(null); }
+      req.onupgradeneeded = function () { req.result.createObjectStore("keys"); };
+      req.onerror = function () { finish(null); };
+      req.onsuccess = function () {
+        var db = req.result;
+        try {
+          var g = db.transaction("keys", "readonly").objectStore("keys").get("intent");
+          g.onsuccess = function () { finish(g.result || null); db.close(); };
+          g.onerror = function () { finish(null); db.close(); };
+        } catch (e) { finish(null); db.close(); }
+      };
+    });
+  }
   async function privateKey() {
     var stored = null;
     try { stored = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) {}
-    if (!stored || !stored.privateKeyJwk || !stored.publicKeyJwk) return null;
-    var pk = await crypto.subtle.importKey("jwk", stored.privateKeyJwk, { name: "Ed25519" }, false, ["sign"]);
+    if (!stored || !stored.publicKeyJwk) return null;
+    var pk = stored.privateKeyJwk
+      ? await crypto.subtle.importKey("jwk", stored.privateKeyJwk, { name: "Ed25519" }, false, ["sign"])
+      : await storedIntentKey();
+    if (!pk) return null;
     var hex = atob(stored.publicKeyJwk.x.replace(/-/g, "+").replace(/_/g, "/"))
       .split("").map(function (c) { return c.charCodeAt(0).toString(16).padStart(2, "0"); }).join("");
     return { pk: pk, pubkeyHex: hex };
@@ -239,8 +269,11 @@ votes sit under their own filter and never need endorsing.</p>
       render();
     } catch (e) {
       out.textContent = "";
+      var signIn = " Sign in on Katomia in THIS browser: ☰ → Authenticate, approve in HashPack with one of the admin accounts, then reload this page.";
       var m = e.message === "no-key"
-        ? "This browser has no Katomia key. Open this page in the browser you authenticated your admin account in."
+        ? "This browser has no Katomia key yet. Open Katomia's home page once in this browser, then:" + signIn
+        : /not bound|not an admin/.test(e.message)
+        ? "This browser is not signed in as an admin (" + e.message + ")." + signIn
         : e.message;
       out.appendChild(el("div", "note", ""));
       out.lastChild.appendChild(el("b", "err", "Can't read the inbox. "));
